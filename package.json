@@ -29,7 +29,8 @@
     "rollup-plugin-livereload": "^1.0.0",
     "rollup-plugin-node-resolve": "^5.2.0",
     "rollup-plugin-bundle-size": "^1.0.3",
-    "rollup-plugin-svelte": "^5.0.3",
+    "rollup-plugin-svelte": "7.1.0",
+    "rollup-plugin-css-only": "3.1.0",
     "rollup-plugin-terser": "^4.0.4",
     "svelte": "^3.16.5",
     "sirv-cli": "^0.4.4"

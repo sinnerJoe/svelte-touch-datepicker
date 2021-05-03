@@ -8,7 +8,7 @@
   export let data = 0;
   export let type;
 
-  let position = selected ? -(selected - 1) * 50 : 0;
+  let position = selected ? -(selected) * 50 : 0;
   let offset = 0;
   let dragging = false;
 
@@ -20,7 +20,7 @@
   });
 
   afterUpdate(() => {
-		let selectedPosition = -(selected - 1) * 50
+		let selectedPosition = -(selected) * 50
 
     if (!dragging && position !== selectedPosition) {
         position = selectedPosition
@@ -37,14 +37,13 @@
 
   function setPosition(){
      let itemPosition = `
-      will-change: 'transform';
       transition: transform ${Math.abs(offset) / 100 + 0.1}s;
       transform: translateY(${position}px)
     `;
     itemWrapper.style.cssText = itemPosition;
   }
 
-  let onMouseDown = (event) => {
+  function onMouseDown (event) {
     previousY = event.touches ? event.touches[0].clientY : event.clientY;
     dragging = true;
 
@@ -54,7 +53,7 @@
     window.addEventListener('touchend', onMouseUp)
   }
 
-   let onMouseMove = (event) => {
+   function onMouseMove (event) {
     let clientY = event.touches ? event.touches[0].clientY : event.clientY;
     offset = clientY - previousY;
 
@@ -65,7 +64,7 @@
     setPosition();
   }
 
-  let onMouseUp = () => {
+  function onMouseUp () {
     let maxPosition = -(data.length - 1) * 50;
     let rounderPosition = Math.round((position + offset * 5) / 50) * 50;
     let finalPosition = Math.max(maxPosition, Math.min(0, rounderPosition));
@@ -82,16 +81,28 @@
     onDateChange(type, -finalPosition / 50);
   }
 
-  let onWheel = (e) => {
+  function scrollNext() {
+    position += 50;
+    setPosition();
+    onDateChange(type, -position / 50)
+  }
+
+  function scrollPrev() {
+    console.log("prev")
+    position -= 50;
+    setPosition();
+    onDateChange(type, -position / 50)
+  }
+
+  function onWheel (e) {
     if (e.deltaY < 0)
       {
-        position = position - 50
+        scrollPrev();
       }
       if (e.deltaY > 0)
       {
-        position = position + 50
+        scrollNext();
       }
-    onMouseUp()
   }
 
 
@@ -112,8 +123,7 @@
   padding: 0;
 }
 
-.touch-date-wrapper:before,
-.touch-date-wrapper:after {
+.touch-upper-cover, .touch-lower-cover {
   content: '';
   position: absolute;
   left: 0;
@@ -121,15 +131,15 @@
   height: 50px;
   background-color: #fff;
   opacity: 0.8;
-  pointer-events: none;
   z-index: 1;
+  cursor: pointer;
 }
 
-.touch-date-wrapper:before {
+.touch-upper-cover {
   top: -51px;
 }
 
-.touch-date-wrapper:after {
+.touch-lower-cover {
   bottom: -51px;
 }
 
@@ -147,10 +157,12 @@
 </style>
 
 
-<div class='touch-date-wrapper' on:mousedown={onMouseDown} on:touchstart={onMouseDown} on:wheel={onWheel}>
+<div class='touch-date-wrapper' on:mousedown={onMouseDown} on:touchstart={onMouseDown} on:wheel|preventDefault={onWheel}>
+  <div on:click|preventDefault={scrollNext} class="touch-upper-cover"></div>
   <ul bind:this={itemWrapper} class="touch-date-container">
    {#each data as item }
      <li>{item}</li>
    {/each}
   </ul>
+  <div on:click|preventDefault={scrollPrev} class="touch-lower-cover"></div>
 </div>

@@ -14,18 +14,24 @@
   const WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const dispatch = createEventDispatcher();
 
-  let _date, popup;
+  let _date, popup, lastDate;
   $: DAYS = new Array( new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate() ).fill(1).map((v, i) => v + i);
   $:  _date = date.toLocaleDateString("en-US");
 
 
-
-
-  let resetDate = () => {
-    date = new Date();
+  const toggleVisibility = () => {
+    if(!visible) {
+      lastDate = date;
+    }
+    visible = !visible; 
   }
 
-  let dateChanged = (event) => {
+
+  const resetDate = () => {
+    date = lastDate;
+  }
+
+  const dateChanged = (event) => {
 
     let {type, changedData} = event.detail;
     let newDate = new Date();
@@ -48,13 +54,13 @@
   }
 
   function confirmDate(event){
-    visible = !visible
+    toggleVisibility();
     dispatch('confirmDate', {MouseEvent:event, date});
   }
 
   function clickedOutside(event){
     if(event.target == popup){
-      visible = false
+      toggleVisibility();
     }
   }
 </script>
@@ -119,7 +125,7 @@
 }
 </style>
 
-<input type="text" class='{classes}' readonly value={_date} on:focus={() => {visible = !visible}}>
+<input type="text" class='{classes}' readonly value={_date} on:focus={toggleVisibility}>
 {#if visible}
   <div class="touch-date-popup" on:click={clickedOutside} bind:this={popup}>
     <div>
@@ -127,9 +133,9 @@
         <div class='date-line'>{ date.getDate() } { MONTHS[date.getMonth()] } { date.getFullYear() }</div>
         <p class='day-line'>{ WEEKDAY[date.getDay()] }</p>
         <div class='touch-date-picker'>
-          <Switcher type='day' data={DAYS} selected={date.getDate()} on:dateChange={dateChanged}/>
-          <Switcher type='month' data={MONTHS} selected={date.getMonth() + 1} on:dateChange={dateChanged}/>
-          <Switcher type='year' data={YEARS} selected={date.getYear() + 1} on:dateChange={dateChanged}/>
+          <Switcher type='day' data={DAYS} selected={date.getDate() - 1} on:dateChange={dateChanged}/>
+          <Switcher type='month' data={MONTHS} selected={date.getMonth()} on:dateChange={dateChanged}/>
+          <Switcher type='year' data={YEARS} selected={date.getYear()} on:dateChange={dateChanged}/>
         </div>
         <div class='touch-date-reset'>
           <button on:click|stopPropagation={resetDate}>Reset</button>

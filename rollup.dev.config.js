@@ -1,6 +1,7 @@
 import svelte from 'rollup-plugin-svelte';
 import resolve from 'rollup-plugin-node-resolve';
 import commonjs from 'rollup-plugin-commonjs';
+import css from 'rollup-plugin-css-only';
 import livereload from 'rollup-plugin-livereload';
 import { terser } from 'rollup-plugin-terser';
 
@@ -15,6 +16,7 @@ export default {
 		file: 'docs/bundle.js'
 	},
 	plugins: [
+      	css({ output: 'bundle.css' }),
 		svelte({
 			// enable run-time checks when not in production
 			dev: !production,

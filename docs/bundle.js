@@ -57,6 +57,13 @@ var app = (function () {
         node.addEventListener(event, handler, options);
         return () => node.removeEventListener(event, handler, options);
     }
+    function prevent_default(fn) {
+        return function (event) {
+            event.preventDefault();
+            // @ts-ignore
+            return fn.call(this, event);
+        };
+    }
     function stop_propagation(fn) {
         return function (event) {
             event.stopPropagation();
@@ -356,28 +363,28 @@ var app = (function () {
 
     function get_each_context(ctx, list, i) {
     	const child_ctx = ctx.slice();
-    	child_ctx[16] = list[i];
+    	child_ctx[18] = list[i];
     	return child_ctx;
     }
 
-    // (152:3) {#each data as item }
+    // (163:3) {#each data as item }
     function create_each_block(ctx) {
     	let li;
-    	let t_value = /*item*/ ctx[16] + "";
+    	let t_value = /*item*/ ctx[18] + "";
     	let t;
 
     	return {
     		c() {
     			li = element("li");
     			t = text(t_value);
-    			attr(li, "class", "svelte-1w8zh06");
+    			attr(li, "class", "svelte-1blcqj0");
     		},
     		m(target, anchor) {
     			insert(target, li, anchor);
     			append(li, t);
     		},
     		p(ctx, dirty) {
-    			if (dirty & /*data*/ 1 && t_value !== (t_value = /*item*/ ctx[16] + "")) set_data(t, t_value);
+    			if (dirty & /*data*/ 1 && t_value !== (t_value = /*item*/ ctx[18] + "")) set_data(t, t_value);
     		},
     		d(detaching) {
     			if (detaching) detach(li);
@@ -386,8 +393,12 @@ var app = (function () {
     }
 
     function create_fragment(ctx) {
-    	let div;
+    	let div2;
+    	let div0;
+    	let t0;
     	let ul;
+    	let t1;
+    	let div1;
     	let mounted;
     	let dispose;
     	let each_value = /*data*/ ctx[0];
@@ -399,31 +410,43 @@ var app = (function () {
 
     	return {
     		c() {
-    			div = element("div");
+    			div2 = element("div");
+    			div0 = element("div");
+    			t0 = space();
     			ul = element("ul");
 
     			for (let i = 0; i < each_blocks.length; i += 1) {
     				each_blocks[i].c();
     			}
 
-    			attr(ul, "class", "touch-date-container svelte-1w8zh06");
-    			attr(div, "class", "touch-date-wrapper svelte-1w8zh06");
+    			t1 = space();
+    			div1 = element("div");
+    			attr(div0, "class", "touch-upper-cover svelte-1blcqj0");
+    			attr(ul, "class", "touch-date-container svelte-1blcqj0");
+    			attr(div1, "class", "touch-lower-cover svelte-1blcqj0");
+    			attr(div2, "class", "touch-date-wrapper svelte-1blcqj0");
     		},
     		m(target, anchor) {
-    			insert(target, div, anchor);
-    			append(div, ul);
+    			insert(target, div2, anchor);
+    			append(div2, div0);
+    			append(div2, t0);
+    			append(div2, ul);
 
     			for (let i = 0; i < each_blocks.length; i += 1) {
     				each_blocks[i].m(ul, null);
     			}
 
-    			/*ul_binding*/ ctx[6](ul);
+    			/*ul_binding*/ ctx[8](ul);
+    			append(div2, t1);
+    			append(div2, div1);
 
     			if (!mounted) {
     				dispose = [
-    					listen(div, "mousedown", /*onMouseDown*/ ctx[2]),
-    					listen(div, "touchstart", /*onMouseDown*/ ctx[2]),
-    					listen(div, "wheel", /*onWheel*/ ctx[3])
+    					listen(div0, "click", prevent_default(/*scrollNext*/ ctx[3])),
+    					listen(div1, "click", prevent_default(/*scrollPrev*/ ctx[4])),
+    					listen(div2, "mousedown", /*onMouseDown*/ ctx[2]),
+    					listen(div2, "touchstart", /*onMouseDown*/ ctx[2]),
+    					listen(div2, "wheel", prevent_default(/*onWheel*/ ctx[5]))
     				];
 
     				mounted = true;
@@ -456,9 +479,9 @@ var app = (function () {
     		i: noop,
     		o: noop,
     		d(detaching) {
-    			if (detaching) detach(div);
+    			if (detaching) detach(div2);
     			destroy_each(each_blocks, detaching);
-    			/*ul_binding*/ ctx[6](null);
+    			/*ul_binding*/ ctx[8](null);
     			mounted = false;
     			run_all(dispose);
     		}
@@ -470,7 +493,7 @@ var app = (function () {
     	let { selected } = $$props;
     	let { data = 0 } = $$props;
     	let { type } = $$props;
-    	let position = selected ? -(selected - 1) * 50 : 0;
+    	let position = selected ? -selected * 50 : 0;
     	let offset = 0;
     	let dragging = false;
     	let itemWrapper, previousY;
@@ -480,7 +503,7 @@ var app = (function () {
     	});
 
     	afterUpdate(() => {
-    		let selectedPosition = -(selected - 1) * 50;
+    		let selectedPosition = -selected * 50;
 
     		if (!dragging && position !== selectedPosition) {
     			position = selectedPosition;
@@ -494,7 +517,6 @@ var app = (function () {
 
     	function setPosition() {
     		let itemPosition = `
-      will-change: 'transform';
       transition: transform ${Math.abs(offset) / 100 + 0.1}s;
       transform: translateY(${position}px)
     `;
@@ -502,16 +524,16 @@ var app = (function () {
     		$$invalidate(1, itemWrapper.style.cssText = itemPosition, itemWrapper);
     	}
 
-    	let onMouseDown = event => {
+    	function onMouseDown(event) {
     		previousY = event.touches ? event.touches[0].clientY : event.clientY;
     		dragging = true;
     		window.addEventListener("mousemove", onMouseMove);
     		window.addEventListener("mouseup", onMouseUp);
     		window.addEventListener("touchmove", onMouseMove);
     		window.addEventListener("touchend", onMouseUp);
-    	};
+    	}
 
-    	let onMouseMove = event => {
+    	function onMouseMove(event) {
     		let clientY = event.touches ? event.touches[0].clientY : event.clientY;
     		offset = clientY - previousY;
     		let maxPosition = -data.length * 50;
@@ -519,9 +541,9 @@ var app = (function () {
     		position = Math.max(maxPosition, Math.min(50, _position));
     		previousY = event.touches ? event.touches[0].clientY : event.clientY;
     		setPosition();
-    	};
+    	}
 
-    	let onMouseUp = () => {
+    	function onMouseUp() {
     		let maxPosition = -(data.length - 1) * 50;
     		let rounderPosition = Math.round((position + offset * 5) / 50) * 50;
     		let finalPosition = Math.max(maxPosition, Math.min(0, rounderPosition));
@@ -533,19 +555,30 @@ var app = (function () {
     		window.removeEventListener("touchend", onMouseUp);
     		setPosition();
     		onDateChange(type, -finalPosition / 50);
-    	};
+    	}
 
-    	let onWheel = e => {
+    	function scrollNext() {
+    		position += 50;
+    		setPosition();
+    		onDateChange(type, -position / 50);
+    	}
+
+    	function scrollPrev() {
+    		console.log("prev");
+    		position -= 50;
+    		setPosition();
+    		onDateChange(type, -position / 50);
+    	}
+
+    	function onWheel(e) {
     		if (e.deltaY < 0) {
-    			position = position - 50;
+    			scrollPrev();
     		}
 
     		if (e.deltaY > 0) {
-    			position = position + 50;
+    			scrollNext();
     		}
-
-    		onMouseUp();
-    	};
+    	}
 
     	function ul_binding($$value) {
     		binding_callbacks[$$value ? "unshift" : "push"](() => {
@@ -555,18 +588,28 @@ var app = (function () {
     	}
 
     	$$self.$$set = $$props => {
-    		if ("selected" in $$props) $$invalidate(4, selected = $$props.selected);
+    		if ("selected" in $$props) $$invalidate(6, selected = $$props.selected);
     		if ("data" in $$props) $$invalidate(0, data = $$props.data);
-    		if ("type" in $$props) $$invalidate(5, type = $$props.type);
+    		if ("type" in $$props) $$invalidate(7, type = $$props.type);
     	};
 
-    	return [data, itemWrapper, onMouseDown, onWheel, selected, type, ul_binding];
+    	return [
+    		data,
+    		itemWrapper,
+    		onMouseDown,
+    		scrollNext,
+    		scrollPrev,
+    		onWheel,
+    		selected,
+    		type,
+    		ul_binding
+    	];
     }
 
     class Switcher extends SvelteComponent {
     	constructor(options) {
     		super();
-    		init(this, options, instance, create_fragment, safe_not_equal, { selected: 4, data: 0, type: 5 });
+    		init(this, options, instance, create_fragment, safe_not_equal, { selected: 6, data: 0, type: 7 });
     	}
     }
 
@@ -609,31 +652,31 @@ var app = (function () {
     			props: {
     				type: "day",
     				data: /*DAYS*/ ctx[5],
-    				selected: /*date*/ ctx[0].getDate()
+    				selected: /*date*/ ctx[0].getDate() - 1
     			}
     		});
 
-    	switcher0.$on("dateChange", /*dateChanged*/ ctx[10]);
+    	switcher0.$on("dateChange", /*dateChanged*/ ctx[11]);
 
     	switcher1 = new Switcher({
     			props: {
     				type: "month",
     				data: /*MONTHS*/ ctx[6],
-    				selected: /*date*/ ctx[0].getMonth() + 1
+    				selected: /*date*/ ctx[0].getMonth()
     			}
     		});
 
-    	switcher1.$on("dateChange", /*dateChanged*/ ctx[10]);
+    	switcher1.$on("dateChange", /*dateChanged*/ ctx[11]);
 
     	switcher2 = new Switcher({
     			props: {
     				type: "year",
     				data: /*YEARS*/ ctx[7],
-    				selected: /*date*/ ctx[0].getYear() + 1
+    				selected: /*date*/ ctx[0].getYear()
     			}
     		});
 
-    	switcher2.$on("dateChange", /*dateChanged*/ ctx[10]);
+    	switcher2.$on("dateChange", /*dateChanged*/ ctx[11]);
 
     	return {
     		c() {
@@ -703,9 +746,9 @@ var app = (function () {
 
     			if (!mounted) {
     				dispose = [
-    					listen(button0, "click", stop_propagation(/*resetDate*/ ctx[9])),
-    					listen(button1, "click", stop_propagation(/*confirmDate*/ ctx[11])),
-    					listen(div5, "click", /*clickedOutside*/ ctx[12])
+    					listen(button0, "click", stop_propagation(/*resetDate*/ ctx[10])),
+    					listen(button1, "click", stop_propagation(/*confirmDate*/ ctx[12])),
+    					listen(div5, "click", /*clickedOutside*/ ctx[13])
     				];
 
     				mounted = true;
@@ -718,13 +761,13 @@ var app = (function () {
     			if ((!current || dirty & /*date*/ 1) && t6_value !== (t6_value = /*WEEKDAY*/ ctx[8][/*date*/ ctx[0].getDay()] + "")) set_data(t6, t6_value);
     			const switcher0_changes = {};
     			if (dirty & /*DAYS*/ 32) switcher0_changes.data = /*DAYS*/ ctx[5];
-    			if (dirty & /*date*/ 1) switcher0_changes.selected = /*date*/ ctx[0].getDate();
+    			if (dirty & /*date*/ 1) switcher0_changes.selected = /*date*/ ctx[0].getDate() - 1;
     			switcher0.$set(switcher0_changes);
     			const switcher1_changes = {};
-    			if (dirty & /*date*/ 1) switcher1_changes.selected = /*date*/ ctx[0].getMonth() + 1;
+    			if (dirty & /*date*/ 1) switcher1_changes.selected = /*date*/ ctx[0].getMonth();
     			switcher1.$set(switcher1_changes);
     			const switcher2_changes = {};
-    			if (dirty & /*date*/ 1) switcher2_changes.selected = /*date*/ ctx[0].getYear() + 1;
+    			if (dirty & /*date*/ 1) switcher2_changes.selected = /*date*/ ctx[0].getYear();
     			switcher2.$set(switcher2_changes);
     		},
     		i(local) {
@@ -781,7 +824,7 @@ var app = (function () {
     			current = true;
 
     			if (!mounted) {
-    				dispose = listen(input, "focus", /*focus_handler*/ ctx[14]);
+    				dispose = listen(input, "focus", /*toggleVisibility*/ ctx[9]);
     				mounted = true;
     			}
     		},
@@ -863,13 +906,21 @@ var app = (function () {
     	const YEARS = new Array(years_count).fill(years_map[0]).map((v, i) => v + i);
     	const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     	const dispatch = createEventDispatcher();
-    	let _date, popup;
+    	let _date, popup, lastDate;
 
-    	let resetDate = () => {
-    		$$invalidate(0, date = new Date());
+    	const toggleVisibility = () => {
+    		if (!visible) {
+    			lastDate = date;
+    		}
+
+    		$$invalidate(1, visible = !visible);
     	};
 
-    	let dateChanged = event => {
+    	const resetDate = () => {
+    		$$invalidate(0, date = lastDate);
+    	};
+
+    	const dateChanged = event => {
     		let { type, changedData } = event.detail;
     		let newDate = new Date();
 
@@ -890,19 +941,15 @@ var app = (function () {
     	};
 
     	function confirmDate(event) {
-    		$$invalidate(1, visible = !visible);
+    		toggleVisibility();
     		dispatch("confirmDate", { MouseEvent: event, date });
     	}
 
     	function clickedOutside(event) {
     		if (event.target == popup) {
-    			$$invalidate(1, visible = false);
+    			toggleVisibility();
     		}
     	}
-
-    	const focus_handler = () => {
-    		$$invalidate(1, visible = !visible);
-    	};
 
     	function div5_binding($$value) {
     		binding_callbacks[$$value ? "unshift" : "push"](() => {
@@ -914,7 +961,7 @@ var app = (function () {
     	$$self.$$set = $$props => {
     		if ("date" in $$props) $$invalidate(0, date = $$props.date);
     		if ("visible" in $$props) $$invalidate(1, visible = $$props.visible);
-    		if ("years_map" in $$props) $$invalidate(13, years_map = $$props.years_map);
+    		if ("years_map" in $$props) $$invalidate(14, years_map = $$props.years_map);
     		if ("classes" in $$props) $$invalidate(2, classes = $$props.classes);
     	};
 
@@ -938,12 +985,12 @@ var app = (function () {
     		MONTHS,
     		YEARS,
     		WEEKDAY,
+    		toggleVisibility,
     		resetDate,
     		dateChanged,
     		confirmDate,
     		clickedOutside,
     		years_map,
-    		focus_handler,
     		div5_binding
     	];
     }
@@ -955,7 +1002,7 @@ var app = (function () {
     		init(this, options, instance$1, create_fragment$1, safe_not_equal, {
     			date: 0,
     			visible: 1,
-    			years_map: 13,
+    			years_map: 14,
     			classes: 2
     		});
     	}
