@@ -1,14 +1,9 @@
 
-(function(l, r) { if (l.getElementById('livereloadscript')) return; r = l.createElement('script'); r.async = 1; r.src = '//' + (window.location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1'; r.id = 'livereloadscript'; l.head.appendChild(r) })(window.document);
+(function(l, r) { if (l.getElementById('livereloadscript')) return; r = l.createElement('script'); r.async = 1; r.src = '//' + (window.location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1'; r.id = 'livereloadscript'; l.getElementsByTagName('head')[0].appendChild(r) })(window.document);
 var app = (function () {
     'use strict';
 
     function noop() { }
-    function add_location(element, file, line, column, char) {
-        element.__svelte_meta = {
-            loc: { file, line, column, char }
-        };
-    }
     function run(fn) {
         return fn();
     }
@@ -23,6 +18,9 @@ var app = (function () {
     }
     function safe_not_equal(a, b) {
         return a != a ? b == b : a !== b || ((a && typeof a === 'object') || typeof a === 'function');
+    }
+    function is_empty(obj) {
+        return Object.keys(obj).length === 0;
     }
     function null_to_empty(value) {
         return value == null ? '' : value;
@@ -75,6 +73,11 @@ var app = (function () {
     function children(element) {
         return Array.from(element.childNodes);
     }
+    function set_data(text, data) {
+        data = '' + data;
+        if (text.wholeText !== data)
+            text.data = data;
+    }
     function custom_event(type, detail) {
         const e = document.createEvent('CustomEvent');
         e.initCustomEvent(type, false, false, detail);
@@ -87,7 +90,7 @@ var app = (function () {
     }
     function get_current_component() {
         if (!current_component)
-            throw new Error(`Function called outside component initialization`);
+            throw new Error('Function called outside component initialization');
         return current_component;
     }
     function onMount(fn) {
@@ -129,16 +132,22 @@ var app = (function () {
     function add_flush_callback(fn) {
         flush_callbacks.push(fn);
     }
+    let flushing = false;
+    const seen_callbacks = new Set();
     function flush() {
-        const seen_callbacks = new Set();
+        if (flushing)
+            return;
+        flushing = true;
         do {
             // first, call beforeUpdate functions
             // and update components
-            while (dirty_components.length) {
-                const component = dirty_components.shift();
+            for (let i = 0; i < dirty_components.length; i += 1) {
+                const component = dirty_components[i];
                 set_current_component(component);
                 update(component.$$);
             }
+            set_current_component(null);
+            dirty_components.length = 0;
             while (binding_callbacks.length)
                 binding_callbacks.pop()();
             // then, once components are updated, call
@@ -147,9 +156,9 @@ var app = (function () {
             for (let i = 0; i < render_callbacks.length; i += 1) {
                 const callback = render_callbacks[i];
                 if (!seen_callbacks.has(callback)) {
-                    callback();
                     // ...so guard against infinite loops
                     seen_callbacks.add(callback);
+                    callback();
                 }
             }
             render_callbacks.length = 0;
@@ -158,6 +167,8 @@ var app = (function () {
             flush_callbacks.pop()();
         }
         update_scheduled = false;
+        flushing = false;
+        seen_callbacks.clear();
     }
     function update($$) {
         if ($$.fragment !== null) {
@@ -217,22 +228,24 @@ var app = (function () {
     function create_component(block) {
         block && block.c();
     }
-    function mount_component(component, target, anchor) {
+    function mount_component(component, target, anchor, customElement) {
         const { fragment, on_mount, on_destroy, after_update } = component.$$;
         fragment && fragment.m(target, anchor);
-        // onMount happens before the initial afterUpdate
-        add_render_callback(() => {
-            const new_on_destroy = on_mount.map(run).filter(is_function);
-            if (on_destroy) {
-                on_destroy.push(...new_on_destroy);
-            }
-            else {
-                // Edge case - component was destroyed immediately,
-                // most likely as a result of a binding initialising
-                run_all(new_on_destroy);
-            }
-            component.$$.on_mount = [];
-        });
+        if (!customElement) {
+            // onMount happens before the initial afterUpdate
+            add_render_callback(() => {
+                const new_on_destroy = on_mount.map(run).filter(is_function);
+                if (on_destroy) {
+                    on_destroy.push(...new_on_destroy);
+                }
+                else {
+                    // Edge case - component was destroyed immediately,
+                    // most likely as a result of a binding initialising
+                    run_all(new_on_destroy);
+                }
+                component.$$.on_mount = [];
+            });
+        }
         after_update.forEach(add_render_callback);
     }
     function destroy_component(component, detaching) {
@@ -257,7 +270,6 @@ var app = (function () {
     function init(component, options, instance, create_fragment, not_equal, props, dirty = [-1]) {
         const parent_component = current_component;
         set_current_component(component);
-        const prop_values = options.props || {};
         const $$ = component.$$ = {
             fragment: null,
             ctx: null,
@@ -269,18 +281,21 @@ var app = (function () {
             // lifecycle
             on_mount: [],
             on_destroy: [],
+            on_disconnect: [],
             before_update: [],
             after_update: [],
-            context: new Map(parent_component ? parent_component.$$.context : []),
+            context: new Map(parent_component ? parent_component.$$.context : options.context || []),
             // everything else
             callbacks: blank_object(),
-            dirty
+            dirty,
+            skip_bound: false
         };
         let ready = false;
         $$.ctx = instance
-            ? instance(component, prop_values, (i, ret, value = ret) => {
+            ? instance(component, options.props || {}, (i, ret, ...rest) => {
+                const value = rest.length ? rest[0] : ret;
                 if ($$.ctx && not_equal($$.ctx[i], $$.ctx[i] = value)) {
-                    if ($$.bound[i])
+                    if (!$$.skip_bound && $$.bound[i])
                         $$.bound[i](value);
                     if (ready)
                         make_dirty(component, i);
@@ -295,8 +310,10 @@ var app = (function () {
         $$.fragment = create_fragment ? create_fragment($$.ctx) : false;
         if (options.target) {
             if (options.hydrate) {
+                const nodes = children(options.target);
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                $$.fragment && $$.fragment.l(children(options.target));
+                $$.fragment && $$.fragment.l(nodes);
+                nodes.forEach(detach);
             }
             else {
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -304,11 +321,14 @@ var app = (function () {
             }
             if (options.intro)
                 transition_in(component.$$.fragment);
-            mount_component(component, options.target, options.anchor);
+            mount_component(component, options.target, options.anchor, options.customElement);
             flush();
         }
         set_current_component(parent_component);
     }
+    /**
+     * Base class for Svelte components. Used when dev=false.
+     */
     class SvelteComponent {
         $destroy() {
             destroy_component(this, 1);
@@ -323,74 +343,16 @@ var app = (function () {
                     callbacks.splice(index, 1);
             };
         }
-        $set() {
-            // overridden by instance, if it has props
-        }
-    }
-
-    function dispatch_dev(type, detail) {
-        document.dispatchEvent(custom_event(type, detail));
-    }
-    function append_dev(target, node) {
-        dispatch_dev("SvelteDOMInsert", { target, node });
-        append(target, node);
-    }
-    function insert_dev(target, node, anchor) {
-        dispatch_dev("SvelteDOMInsert", { target, node, anchor });
-        insert(target, node, anchor);
-    }
-    function detach_dev(node) {
-        dispatch_dev("SvelteDOMRemove", { node });
-        detach(node);
-    }
-    function listen_dev(node, event, handler, options, has_prevent_default, has_stop_propagation) {
-        const modifiers = options === true ? ["capture"] : options ? Array.from(Object.keys(options)) : [];
-        if (has_prevent_default)
-            modifiers.push('preventDefault');
-        if (has_stop_propagation)
-            modifiers.push('stopPropagation');
-        dispatch_dev("SvelteDOMAddEventListener", { node, event, handler, modifiers });
-        const dispose = listen(node, event, handler, options);
-        return () => {
-            dispatch_dev("SvelteDOMRemoveEventListener", { node, event, handler, modifiers });
-            dispose();
-        };
-    }
-    function attr_dev(node, attribute, value) {
-        attr(node, attribute, value);
-        if (value == null)
-            dispatch_dev("SvelteDOMRemoveAttribute", { node, attribute });
-        else
-            dispatch_dev("SvelteDOMSetAttribute", { node, attribute, value });
-    }
-    function prop_dev(node, property, value) {
-        node[property] = value;
-        dispatch_dev("SvelteDOMSetProperty", { node, property, value });
-    }
-    function set_data_dev(text, data) {
-        data = '' + data;
-        if (text.data === data)
-            return;
-        dispatch_dev("SvelteDOMSetData", { node: text, data });
-        text.data = data;
-    }
-    class SvelteComponentDev extends SvelteComponent {
-        constructor(options) {
-            if (!options || (!options.target && !options.$$inline)) {
-                throw new Error(`'target' is a required option`);
+        $set($$props) {
+            if (this.$$set && !is_empty($$props)) {
+                this.$$.skip_bound = true;
+                this.$$set($$props);
+                this.$$.skip_bound = false;
             }
-            super();
-        }
-        $destroy() {
-            super.$destroy();
-            this.$destroy = () => {
-                console.warn(`Component was already destroyed`); // eslint-disable-line no-console
-            };
         }
     }
 
-    /* src\Switcher.svelte generated by Svelte v3.16.5 */
-    const file = "src\\Switcher.svelte";
+    /* src/Switcher.svelte generated by Svelte v3.37.0 */
 
     function get_each_context(ctx, list, i) {
     	const child_ctx = ctx.slice();
@@ -404,39 +366,29 @@ var app = (function () {
     	let t_value = /*item*/ ctx[16] + "";
     	let t;
 
-    	const block = {
-    		c: function create() {
+    	return {
+    		c() {
     			li = element("li");
     			t = text(t_value);
-    			attr_dev(li, "class", "svelte-ggmds2");
-    			add_location(li, file, 152, 5, 3598);
+    			attr(li, "class", "svelte-1w8zh06");
     		},
-    		m: function mount(target, anchor) {
-    			insert_dev(target, li, anchor);
-    			append_dev(li, t);
+    		m(target, anchor) {
+    			insert(target, li, anchor);
+    			append(li, t);
     		},
-    		p: function update(ctx, dirty) {
-    			if (dirty & /*data*/ 1 && t_value !== (t_value = /*item*/ ctx[16] + "")) set_data_dev(t, t_value);
+    		p(ctx, dirty) {
+    			if (dirty & /*data*/ 1 && t_value !== (t_value = /*item*/ ctx[16] + "")) set_data(t, t_value);
     		},
-    		d: function destroy(detaching) {
-    			if (detaching) detach_dev(li);
+    		d(detaching) {
+    			if (detaching) detach(li);
     		}
     	};
-
-    	dispatch_dev("SvelteRegisterBlock", {
-    		block,
-    		id: create_each_block.name,
-    		type: "each",
-    		source: "(152:3) {#each data as item }",
-    		ctx
-    	});
-
-    	return block;
     }
 
     function create_fragment(ctx) {
     	let div;
     	let ul;
+    	let mounted;
     	let dispose;
     	let each_value = /*data*/ ctx[0];
     	let each_blocks = [];
@@ -445,8 +397,8 @@ var app = (function () {
     		each_blocks[i] = create_each_block(get_each_context(ctx, each_value, i));
     	}
 
-    	const block = {
-    		c: function create() {
+    	return {
+    		c() {
     			div = element("div");
     			ul = element("ul");
 
@@ -454,31 +406,30 @@ var app = (function () {
     				each_blocks[i].c();
     			}
 
-    			attr_dev(ul, "class", "touch-date-container svelte-ggmds2");
-    			add_location(ul, file, 150, 2, 3508);
-    			attr_dev(div, "class", "touch-date-wrapper svelte-ggmds2");
-    			add_location(div, file, 149, 0, 3398);
-
-    			dispose = [
-    				listen_dev(div, "mousedown", /*onMouseDown*/ ctx[2], false, false, false),
-    				listen_dev(div, "touchstart", /*onMouseDown*/ ctx[2], false, false, false),
-    				listen_dev(div, "wheel", /*onWheel*/ ctx[3], false, false, false)
-    			];
+    			attr(ul, "class", "touch-date-container svelte-1w8zh06");
+    			attr(div, "class", "touch-date-wrapper svelte-1w8zh06");
     		},
-    		l: function claim(nodes) {
-    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
-    		},
-    		m: function mount(target, anchor) {
-    			insert_dev(target, div, anchor);
-    			append_dev(div, ul);
+    		m(target, anchor) {
+    			insert(target, div, anchor);
+    			append(div, ul);
 
     			for (let i = 0; i < each_blocks.length; i += 1) {
     				each_blocks[i].m(ul, null);
     			}
 
-    			/*ul_binding*/ ctx[15](ul);
+    			/*ul_binding*/ ctx[6](ul);
+
+    			if (!mounted) {
+    				dispose = [
+    					listen(div, "mousedown", /*onMouseDown*/ ctx[2]),
+    					listen(div, "touchstart", /*onMouseDown*/ ctx[2]),
+    					listen(div, "wheel", /*onWheel*/ ctx[3])
+    				];
+
+    				mounted = true;
+    			}
     		},
-    		p: function update(ctx, [dirty]) {
+    		p(ctx, [dirty]) {
     			if (dirty & /*data*/ 1) {
     				each_value = /*data*/ ctx[0];
     				let i;
@@ -504,23 +455,14 @@ var app = (function () {
     		},
     		i: noop,
     		o: noop,
-    		d: function destroy(detaching) {
-    			if (detaching) detach_dev(div);
+    		d(detaching) {
+    			if (detaching) detach(div);
     			destroy_each(each_blocks, detaching);
-    			/*ul_binding*/ ctx[15](null);
+    			/*ul_binding*/ ctx[6](null);
+    			mounted = false;
     			run_all(dispose);
     		}
     	};
-
-    	dispatch_dev("SvelteRegisterBlock", {
-    		block,
-    		id: create_fragment.name,
-    		type: "component",
-    		source: "",
-    		ctx
-    	});
-
-    	return block;
     }
 
     function instance($$self, $$props, $$invalidate) {
@@ -605,129 +547,31 @@ var app = (function () {
     		onMouseUp();
     	};
 
-    	const writable_props = ["selected", "data", "type"];
-
-    	Object.keys($$props).forEach(key => {
-    		if (!~writable_props.indexOf(key) && key.slice(0, 2) !== "$$") console.warn(`<Switcher> was created with unknown prop '${key}'`);
-    	});
-
     	function ul_binding($$value) {
     		binding_callbacks[$$value ? "unshift" : "push"](() => {
-    			$$invalidate(1, itemWrapper = $$value);
+    			itemWrapper = $$value;
+    			$$invalidate(1, itemWrapper);
     		});
     	}
 
-    	$$self.$set = $$props => {
+    	$$self.$$set = $$props => {
     		if ("selected" in $$props) $$invalidate(4, selected = $$props.selected);
     		if ("data" in $$props) $$invalidate(0, data = $$props.data);
     		if ("type" in $$props) $$invalidate(5, type = $$props.type);
     	};
 
-    	$$self.$capture_state = () => {
-    		return {
-    			selected,
-    			data,
-    			type,
-    			position,
-    			offset,
-    			dragging,
-    			itemWrapper,
-    			previousY,
-    			onMouseDown,
-    			onMouseMove,
-    			onMouseUp,
-    			onWheel
-    		};
-    	};
-
-    	$$self.$inject_state = $$props => {
-    		if ("selected" in $$props) $$invalidate(4, selected = $$props.selected);
-    		if ("data" in $$props) $$invalidate(0, data = $$props.data);
-    		if ("type" in $$props) $$invalidate(5, type = $$props.type);
-    		if ("position" in $$props) position = $$props.position;
-    		if ("offset" in $$props) offset = $$props.offset;
-    		if ("dragging" in $$props) dragging = $$props.dragging;
-    		if ("itemWrapper" in $$props) $$invalidate(1, itemWrapper = $$props.itemWrapper);
-    		if ("previousY" in $$props) previousY = $$props.previousY;
-    		if ("onMouseDown" in $$props) $$invalidate(2, onMouseDown = $$props.onMouseDown);
-    		if ("onMouseMove" in $$props) onMouseMove = $$props.onMouseMove;
-    		if ("onMouseUp" in $$props) onMouseUp = $$props.onMouseUp;
-    		if ("onWheel" in $$props) $$invalidate(3, onWheel = $$props.onWheel);
-    	};
-
-    	return [
-    		data,
-    		itemWrapper,
-    		onMouseDown,
-    		onWheel,
-    		selected,
-    		type,
-    		position,
-    		offset,
-    		dragging,
-    		previousY,
-    		dispatch,
-    		onDateChange,
-    		setPosition,
-    		onMouseMove,
-    		onMouseUp,
-    		ul_binding
-    	];
+    	return [data, itemWrapper, onMouseDown, onWheel, selected, type, ul_binding];
     }
 
-    class Switcher extends SvelteComponentDev {
+    class Switcher extends SvelteComponent {
     	constructor(options) {
-    		super(options);
+    		super();
     		init(this, options, instance, create_fragment, safe_not_equal, { selected: 4, data: 0, type: 5 });
-
-    		dispatch_dev("SvelteRegisterComponent", {
-    			component: this,
-    			tagName: "Switcher",
-    			options,
-    			id: create_fragment.name
-    		});
-
-    		const { ctx } = this.$$;
-    		const props = options.props || ({});
-
-    		if (/*selected*/ ctx[4] === undefined && !("selected" in props)) {
-    			console.warn("<Switcher> was created without expected prop 'selected'");
-    		}
-
-    		if (/*type*/ ctx[5] === undefined && !("type" in props)) {
-    			console.warn("<Switcher> was created without expected prop 'type'");
-    		}
-    	}
-
-    	get selected() {
-    		throw new Error("<Switcher>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set selected(value) {
-    		throw new Error("<Switcher>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get data() {
-    		throw new Error("<Switcher>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set data(value) {
-    		throw new Error("<Switcher>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get type() {
-    		throw new Error("<Switcher>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set type(value) {
-    		throw new Error("<Switcher>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
     }
 
-    /* src\DatePicker.svelte generated by Svelte v3.16.5 */
-    const file$1 = "src\\DatePicker.svelte";
+    /* src/DatePicker.svelte generated by Svelte v3.37.0 */
 
-    // (123:0) {#if visible}
     function create_if_block(ctx) {
     	let div5;
     	let div4;
@@ -747,51 +591,52 @@ var app = (function () {
     	let t6;
     	let t7;
     	let div1;
+    	let switcher0;
     	let t8;
+    	let switcher1;
     	let t9;
+    	let switcher2;
     	let t10;
     	let div2;
     	let button0;
     	let t12;
     	let button1;
     	let current;
+    	let mounted;
     	let dispose;
 
-    	const switcher0 = new Switcher({
+    	switcher0 = new Switcher({
     			props: {
     				type: "day",
     				data: /*DAYS*/ ctx[5],
     				selected: /*date*/ ctx[0].getDate()
-    			},
-    			$$inline: true
+    			}
     		});
 
     	switcher0.$on("dateChange", /*dateChanged*/ ctx[10]);
 
-    	const switcher1 = new Switcher({
+    	switcher1 = new Switcher({
     			props: {
     				type: "month",
     				data: /*MONTHS*/ ctx[6],
     				selected: /*date*/ ctx[0].getMonth() + 1
-    			},
-    			$$inline: true
+    			}
     		});
 
     	switcher1.$on("dateChange", /*dateChanged*/ ctx[10]);
 
-    	const switcher2 = new Switcher({
+    	switcher2 = new Switcher({
     			props: {
     				type: "year",
     				data: /*YEARS*/ ctx[7],
     				selected: /*date*/ ctx[0].getYear() + 1
-    			},
-    			$$inline: true
+    			}
     		});
 
     	switcher2.$on("dateChange", /*dateChanged*/ ctx[10]);
 
-    	const block = {
-    		c: function create() {
+    	return {
+    		c() {
     			div5 = element("div");
     			div4 = element("div");
     			div3 = element("div");
@@ -818,64 +663,59 @@ var app = (function () {
     			t12 = space();
     			button1 = element("button");
     			button1.textContent = "Ok";
-    			attr_dev(div0, "class", "date-line svelte-tzk5sz");
-    			add_location(div0, file$1, 126, 8, 3449);
-    			attr_dev(p, "class", "day-line svelte-tzk5sz");
-    			add_location(p, file$1, 127, 8, 3557);
-    			attr_dev(div1, "class", "touch-date-picker svelte-tzk5sz");
-    			add_location(div1, file$1, 128, 8, 3617);
-    			attr_dev(button0, "class", "svelte-tzk5sz");
-    			add_location(button0, file$1, 134, 10, 4031);
-    			attr_dev(button1, "class", "svelte-tzk5sz");
-    			add_location(button1, file$1, 135, 10, 4102);
-    			attr_dev(div2, "class", "touch-date-reset svelte-tzk5sz");
-    			add_location(div2, file$1, 133, 8, 3989);
-    			attr_dev(div3, "class", "touch-date-wrapper svelte-tzk5sz");
-    			add_location(div3, file$1, 125, 6, 3407);
-    			attr_dev(div4, "class", "svelte-tzk5sz");
-    			add_location(div4, file$1, 124, 4, 3394);
-    			attr_dev(div5, "class", "touch-date-popup svelte-tzk5sz");
-    			add_location(div5, file$1, 123, 2, 3314);
-
-    			dispose = [
-    				listen_dev(button0, "click", stop_propagation(/*resetDate*/ ctx[9]), false, false, true),
-    				listen_dev(button1, "click", stop_propagation(/*confirmDate*/ ctx[11]), false, false, true),
-    				listen_dev(div5, "click", /*clickedOutside*/ ctx[12], false, false, false)
-    			];
+    			attr(div0, "class", "date-line svelte-1gfjl4n");
+    			attr(p, "class", "day-line svelte-1gfjl4n");
+    			attr(div1, "class", "touch-date-picker svelte-1gfjl4n");
+    			attr(button0, "class", "svelte-1gfjl4n");
+    			attr(button1, "class", "svelte-1gfjl4n");
+    			attr(div2, "class", "touch-date-reset svelte-1gfjl4n");
+    			attr(div3, "class", "touch-date-wrapper svelte-1gfjl4n");
+    			attr(div4, "class", "svelte-1gfjl4n");
+    			attr(div5, "class", "touch-date-popup svelte-1gfjl4n");
     		},
-    		m: function mount(target, anchor) {
-    			insert_dev(target, div5, anchor);
-    			append_dev(div5, div4);
-    			append_dev(div4, div3);
-    			append_dev(div3, div0);
-    			append_dev(div0, t0);
-    			append_dev(div0, t1);
-    			append_dev(div0, t2);
-    			append_dev(div0, t3);
-    			append_dev(div0, t4);
-    			append_dev(div3, t5);
-    			append_dev(div3, p);
-    			append_dev(p, t6);
-    			append_dev(div3, t7);
-    			append_dev(div3, div1);
+    		m(target, anchor) {
+    			insert(target, div5, anchor);
+    			append(div5, div4);
+    			append(div4, div3);
+    			append(div3, div0);
+    			append(div0, t0);
+    			append(div0, t1);
+    			append(div0, t2);
+    			append(div0, t3);
+    			append(div0, t4);
+    			append(div3, t5);
+    			append(div3, p);
+    			append(p, t6);
+    			append(div3, t7);
+    			append(div3, div1);
     			mount_component(switcher0, div1, null);
-    			append_dev(div1, t8);
+    			append(div1, t8);
     			mount_component(switcher1, div1, null);
-    			append_dev(div1, t9);
+    			append(div1, t9);
     			mount_component(switcher2, div1, null);
-    			append_dev(div3, t10);
-    			append_dev(div3, div2);
-    			append_dev(div2, button0);
-    			append_dev(div2, t12);
-    			append_dev(div2, button1);
-    			/*div5_binding*/ ctx[17](div5);
+    			append(div3, t10);
+    			append(div3, div2);
+    			append(div2, button0);
+    			append(div2, t12);
+    			append(div2, button1);
+    			/*div5_binding*/ ctx[15](div5);
     			current = true;
+
+    			if (!mounted) {
+    				dispose = [
+    					listen(button0, "click", stop_propagation(/*resetDate*/ ctx[9])),
+    					listen(button1, "click", stop_propagation(/*confirmDate*/ ctx[11])),
+    					listen(div5, "click", /*clickedOutside*/ ctx[12])
+    				];
+
+    				mounted = true;
+    			}
     		},
-    		p: function update(ctx, dirty) {
-    			if ((!current || dirty & /*date*/ 1) && t0_value !== (t0_value = /*date*/ ctx[0].getDate() + "")) set_data_dev(t0, t0_value);
-    			if ((!current || dirty & /*date*/ 1) && t2_value !== (t2_value = /*MONTHS*/ ctx[6][/*date*/ ctx[0].getMonth()] + "")) set_data_dev(t2, t2_value);
-    			if ((!current || dirty & /*date*/ 1) && t4_value !== (t4_value = /*date*/ ctx[0].getFullYear() + "")) set_data_dev(t4, t4_value);
-    			if ((!current || dirty & /*date*/ 1) && t6_value !== (t6_value = /*WEEKDAY*/ ctx[8][/*date*/ ctx[0].getDay()] + "")) set_data_dev(t6, t6_value);
+    		p(ctx, dirty) {
+    			if ((!current || dirty & /*date*/ 1) && t0_value !== (t0_value = /*date*/ ctx[0].getDate() + "")) set_data(t0, t0_value);
+    			if ((!current || dirty & /*date*/ 1) && t2_value !== (t2_value = /*MONTHS*/ ctx[6][/*date*/ ctx[0].getMonth()] + "")) set_data(t2, t2_value);
+    			if ((!current || dirty & /*date*/ 1) && t4_value !== (t4_value = /*date*/ ctx[0].getFullYear() + "")) set_data(t4, t4_value);
+    			if ((!current || dirty & /*date*/ 1) && t6_value !== (t6_value = /*WEEKDAY*/ ctx[8][/*date*/ ctx[0].getDay()] + "")) set_data(t6, t6_value);
     			const switcher0_changes = {};
     			if (dirty & /*DAYS*/ 32) switcher0_changes.data = /*DAYS*/ ctx[5];
     			if (dirty & /*date*/ 1) switcher0_changes.selected = /*date*/ ctx[0].getDate();
@@ -887,38 +727,29 @@ var app = (function () {
     			if (dirty & /*date*/ 1) switcher2_changes.selected = /*date*/ ctx[0].getYear() + 1;
     			switcher2.$set(switcher2_changes);
     		},
-    		i: function intro(local) {
+    		i(local) {
     			if (current) return;
     			transition_in(switcher0.$$.fragment, local);
     			transition_in(switcher1.$$.fragment, local);
     			transition_in(switcher2.$$.fragment, local);
     			current = true;
     		},
-    		o: function outro(local) {
+    		o(local) {
     			transition_out(switcher0.$$.fragment, local);
     			transition_out(switcher1.$$.fragment, local);
     			transition_out(switcher2.$$.fragment, local);
     			current = false;
     		},
-    		d: function destroy(detaching) {
-    			if (detaching) detach_dev(div5);
+    		d(detaching) {
+    			if (detaching) detach(div5);
     			destroy_component(switcher0);
     			destroy_component(switcher1);
     			destroy_component(switcher2);
-    			/*div5_binding*/ ctx[17](null);
+    			/*div5_binding*/ ctx[15](null);
+    			mounted = false;
     			run_all(dispose);
     		}
     	};
-
-    	dispatch_dev("SvelteRegisterBlock", {
-    		block,
-    		id: create_if_block.name,
-    		type: "if",
-    		source: "(123:0) {#if visible}",
-    		ctx
-    	});
-
-    	return block;
     }
 
     function create_fragment$1(ctx) {
@@ -927,45 +758,49 @@ var app = (function () {
     	let t;
     	let if_block_anchor;
     	let current;
+    	let mounted;
     	let dispose;
     	let if_block = /*visible*/ ctx[1] && create_if_block(ctx);
 
-    	const block = {
-    		c: function create() {
+    	return {
+    		c() {
     			input = element("input");
     			t = space();
     			if (if_block) if_block.c();
     			if_block_anchor = empty();
-    			attr_dev(input, "type", "text");
-    			attr_dev(input, "class", input_class_value = "" + (null_to_empty(/*classes*/ ctx[2]) + " svelte-tzk5sz"));
+    			attr(input, "type", "text");
+    			attr(input, "class", input_class_value = "" + (null_to_empty(/*classes*/ ctx[2]) + " svelte-1gfjl4n"));
     			input.readOnly = true;
     			input.value = /*_date*/ ctx[3];
-    			add_location(input, file$1, 121, 0, 3197);
-    			dispose = listen_dev(input, "focus", /*focus_handler*/ ctx[16], false, false, false);
     		},
-    		l: function claim(nodes) {
-    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
-    		},
-    		m: function mount(target, anchor) {
-    			insert_dev(target, input, anchor);
-    			insert_dev(target, t, anchor);
+    		m(target, anchor) {
+    			insert(target, input, anchor);
+    			insert(target, t, anchor);
     			if (if_block) if_block.m(target, anchor);
-    			insert_dev(target, if_block_anchor, anchor);
+    			insert(target, if_block_anchor, anchor);
     			current = true;
+
+    			if (!mounted) {
+    				dispose = listen(input, "focus", /*focus_handler*/ ctx[14]);
+    				mounted = true;
+    			}
     		},
-    		p: function update(ctx, [dirty]) {
-    			if (!current || dirty & /*classes*/ 4 && input_class_value !== (input_class_value = "" + (null_to_empty(/*classes*/ ctx[2]) + " svelte-tzk5sz"))) {
-    				attr_dev(input, "class", input_class_value);
+    		p(ctx, [dirty]) {
+    			if (!current || dirty & /*classes*/ 4 && input_class_value !== (input_class_value = "" + (null_to_empty(/*classes*/ ctx[2]) + " svelte-1gfjl4n"))) {
+    				attr(input, "class", input_class_value);
     			}
 
-    			if (!current || dirty & /*_date*/ 8) {
-    				prop_dev(input, "value", /*_date*/ ctx[3]);
+    			if (!current || dirty & /*_date*/ 8 && input.value !== /*_date*/ ctx[3]) {
+    				input.value = /*_date*/ ctx[3];
     			}
 
     			if (/*visible*/ ctx[1]) {
     				if (if_block) {
     					if_block.p(ctx, dirty);
-    					transition_in(if_block, 1);
+
+    					if (dirty & /*visible*/ 2) {
+    						transition_in(if_block, 1);
+    					}
     				} else {
     					if_block = create_if_block(ctx);
     					if_block.c();
@@ -982,36 +817,28 @@ var app = (function () {
     				check_outros();
     			}
     		},
-    		i: function intro(local) {
+    		i(local) {
     			if (current) return;
     			transition_in(if_block);
     			current = true;
     		},
-    		o: function outro(local) {
+    		o(local) {
     			transition_out(if_block);
     			current = false;
     		},
-    		d: function destroy(detaching) {
-    			if (detaching) detach_dev(input);
-    			if (detaching) detach_dev(t);
+    		d(detaching) {
+    			if (detaching) detach(input);
+    			if (detaching) detach(t);
     			if (if_block) if_block.d(detaching);
-    			if (detaching) detach_dev(if_block_anchor);
+    			if (detaching) detach(if_block_anchor);
+    			mounted = false;
     			dispose();
     		}
     	};
-
-    	dispatch_dev("SvelteRegisterBlock", {
-    		block,
-    		id: create_fragment$1.name,
-    		type: "component",
-    		source: "",
-    		ctx
-    	});
-
-    	return block;
     }
 
     function instance$1($$self, $$props, $$invalidate) {
+    	let DAYS;
     	let { date = new Date() } = $$props;
     	let { visible = false } = $$props;
     	let { years_map = [1900, 2100] } = $$props;
@@ -1073,58 +900,23 @@ var app = (function () {
     		}
     	}
 
-    	const writable_props = ["date", "visible", "years_map", "classes"];
-
-    	Object.keys($$props).forEach(key => {
-    		if (!~writable_props.indexOf(key) && key.slice(0, 2) !== "$$") console.warn(`<DatePicker> was created with unknown prop '${key}'`);
-    	});
-
     	const focus_handler = () => {
     		$$invalidate(1, visible = !visible);
     	};
 
     	function div5_binding($$value) {
     		binding_callbacks[$$value ? "unshift" : "push"](() => {
-    			$$invalidate(4, popup = $$value);
+    			popup = $$value;
+    			$$invalidate(4, popup);
     		});
     	}
 
-    	$$self.$set = $$props => {
+    	$$self.$$set = $$props => {
     		if ("date" in $$props) $$invalidate(0, date = $$props.date);
     		if ("visible" in $$props) $$invalidate(1, visible = $$props.visible);
     		if ("years_map" in $$props) $$invalidate(13, years_map = $$props.years_map);
     		if ("classes" in $$props) $$invalidate(2, classes = $$props.classes);
     	};
-
-    	$$self.$capture_state = () => {
-    		return {
-    			date,
-    			visible,
-    			years_map,
-    			classes,
-    			years_count,
-    			_date,
-    			popup,
-    			resetDate,
-    			dateChanged,
-    			DAYS
-    		};
-    	};
-
-    	$$self.$inject_state = $$props => {
-    		if ("date" in $$props) $$invalidate(0, date = $$props.date);
-    		if ("visible" in $$props) $$invalidate(1, visible = $$props.visible);
-    		if ("years_map" in $$props) $$invalidate(13, years_map = $$props.years_map);
-    		if ("classes" in $$props) $$invalidate(2, classes = $$props.classes);
-    		if ("years_count" in $$props) years_count = $$props.years_count;
-    		if ("_date" in $$props) $$invalidate(3, _date = $$props._date);
-    		if ("popup" in $$props) $$invalidate(4, popup = $$props.popup);
-    		if ("resetDate" in $$props) $$invalidate(9, resetDate = $$props.resetDate);
-    		if ("dateChanged" in $$props) $$invalidate(10, dateChanged = $$props.dateChanged);
-    		if ("DAYS" in $$props) $$invalidate(5, DAYS = $$props.DAYS);
-    	};
-
-    	let DAYS;
 
     	$$self.$$.update = () => {
     		if ($$self.$$.dirty & /*date*/ 1) {
@@ -1151,16 +943,14 @@ var app = (function () {
     		confirmDate,
     		clickedOutside,
     		years_map,
-    		years_count,
-    		dispatch,
     		focus_handler,
     		div5_binding
     	];
     }
 
-    class DatePicker extends SvelteComponentDev {
+    class DatePicker extends SvelteComponent {
     	constructor(options) {
-    		super(options);
+    		super();
 
     		init(this, options, instance$1, create_fragment$1, safe_not_equal, {
     			date: 0,
@@ -1168,50 +958,10 @@ var app = (function () {
     			years_map: 13,
     			classes: 2
     		});
-
-    		dispatch_dev("SvelteRegisterComponent", {
-    			component: this,
-    			tagName: "DatePicker",
-    			options,
-    			id: create_fragment$1.name
-    		});
-    	}
-
-    	get date() {
-    		throw new Error("<DatePicker>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set date(value) {
-    		throw new Error("<DatePicker>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get visible() {
-    		throw new Error("<DatePicker>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set visible(value) {
-    		throw new Error("<DatePicker>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get years_map() {
-    		throw new Error("<DatePicker>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set years_map(value) {
-    		throw new Error("<DatePicker>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get classes() {
-    		throw new Error("<DatePicker>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set classes(value) {
-    		throw new Error("<DatePicker>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
     }
 
-    /* dev\App.svelte generated by Svelte v3.16.5 */
-    const file$2 = "dev\\App.svelte";
+    /* dev/App.svelte generated by Svelte v3.37.0 */
 
     function create_fragment$2(ctx) {
     	let div1;
@@ -1220,11 +970,12 @@ var app = (function () {
     	let t0;
     	let t1;
     	let t2;
+    	let datepicker;
     	let updating_date;
     	let current;
 
     	function datepicker_date_binding(value) {
-    		/*datepicker_date_binding*/ ctx[2].call(null, value);
+    		/*datepicker_date_binding*/ ctx[2](value);
     	}
 
     	let datepicker_props = {};
@@ -1233,13 +984,13 @@ var app = (function () {
     		datepicker_props.date = /*date*/ ctx[0];
     	}
 
-    	const datepicker = new DatePicker({ props: datepicker_props, $$inline: true });
+    	datepicker = new DatePicker({ props: datepicker_props });
     	binding_callbacks.push(() => bind(datepicker, "date", datepicker_date_binding));
     	datepicker.$on("dateChange", dateChanged);
     	datepicker.$on("confirmDate", confirmDate);
 
-    	const block = {
-    		c: function create() {
+    	return {
+    		c() {
     			div1 = element("div");
     			div0 = element("div");
     			p = element("p");
@@ -1247,27 +998,21 @@ var app = (function () {
     			t1 = text(/*_date*/ ctx[1]);
     			t2 = space();
     			create_component(datepicker.$$.fragment);
-    			add_location(p, file$2, 46, 4, 803);
-    			attr_dev(div0, "class", "center svelte-yz6bdb");
-    			add_location(div0, file$2, 45, 2, 777);
-    			attr_dev(div1, "class", "container svelte-yz6bdb");
-    			add_location(div1, file$2, 44, 0, 749);
+    			attr(div0, "class", "center svelte-q5pfva");
+    			attr(div1, "class", "container svelte-q5pfva");
     		},
-    		l: function claim(nodes) {
-    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
-    		},
-    		m: function mount(target, anchor) {
-    			insert_dev(target, div1, anchor);
-    			append_dev(div1, div0);
-    			append_dev(div0, p);
-    			append_dev(p, t0);
-    			append_dev(p, t1);
-    			append_dev(div0, t2);
+    		m(target, anchor) {
+    			insert(target, div1, anchor);
+    			append(div1, div0);
+    			append(div0, p);
+    			append(p, t0);
+    			append(p, t1);
+    			append(div0, t2);
     			mount_component(datepicker, div0, null);
     			current = true;
     		},
-    		p: function update(ctx, [dirty]) {
-    			if (!current || dirty & /*_date*/ 2) set_data_dev(t1, /*_date*/ ctx[1]);
+    		p(ctx, [dirty]) {
+    			if (!current || dirty & /*_date*/ 2) set_data(t1, /*_date*/ ctx[1]);
     			const datepicker_changes = {};
 
     			if (!updating_date && dirty & /*date*/ 1) {
@@ -1278,30 +1023,20 @@ var app = (function () {
 
     			datepicker.$set(datepicker_changes);
     		},
-    		i: function intro(local) {
+    		i(local) {
     			if (current) return;
     			transition_in(datepicker.$$.fragment, local);
     			current = true;
     		},
-    		o: function outro(local) {
+    		o(local) {
     			transition_out(datepicker.$$.fragment, local);
     			current = false;
     		},
-    		d: function destroy(detaching) {
-    			if (detaching) detach_dev(div1);
+    		d(detaching) {
+    			if (detaching) detach(div1);
     			destroy_component(datepicker);
     		}
     	};
-
-    	dispatch_dev("SvelteRegisterBlock", {
-    		block,
-    		id: create_fragment$2.name,
-    		type: "component",
-    		source: "",
-    		ctx
-    	});
-
-    	return block;
     }
 
     function dateChanged(event) {
@@ -1313,23 +1048,13 @@ var app = (function () {
     }
 
     function instance$2($$self, $$props, $$invalidate) {
+    	let _date;
     	let date = new Date();
 
     	function datepicker_date_binding(value) {
     		date = value;
     		$$invalidate(0, date);
     	}
-
-    	$$self.$capture_state = () => {
-    		return {};
-    	};
-
-    	$$self.$inject_state = $$props => {
-    		if ("date" in $$props) $$invalidate(0, date = $$props.date);
-    		if ("_date" in $$props) $$invalidate(1, _date = $$props._date);
-    	};
-
-    	let _date;
 
     	$$self.$$.update = () => {
     		if ($$self.$$.dirty & /*date*/ 1) {
@@ -1340,17 +1065,10 @@ var app = (function () {
     	return [date, _date, datepicker_date_binding];
     }
 
-    class App extends SvelteComponentDev {
+    class App extends SvelteComponent {
     	constructor(options) {
-    		super(options);
+    		super();
     		init(this, options, instance$2, create_fragment$2, safe_not_equal, {});
-
-    		dispatch_dev("SvelteRegisterComponent", {
-    			component: this,
-    			tagName: "App",
-    			options,
-    			id: create_fragment$2.name
-    		});
     	}
     }
 
