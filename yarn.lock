@@ -937,6 +937,11 @@ supports-color@^6.1.0:
   dependencies:
     has-flag "^3.0.0"
 
+svelte-portal@^2.1.2:
+  version "2.1.2"
+  resolved "https://registry.yarnpkg.com/svelte-portal/-/svelte-portal-2.1.2.tgz#5a355c18c9782149f94cbb1649ecbdf3d3667293"
+  integrity sha512-u1ONI4ZJDNhVJPDW7tH6RH1ZIzALt6kJZbF00Hz9bgNIVRlzvzimsnwf35rGFMtPFA+FYenvsTHUR815yYNc9A==
+
 svelte@^3.16.5:
   version "3.37.0"
   resolved "https://registry.yarnpkg.com/svelte/-/svelte-3.37.0.tgz#dc7cd24bcc275cdb3f8c684ada89e50489144ccd"

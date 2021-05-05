@@ -5,26 +5,27 @@
   const dispatch = createEventDispatcher();
 
   export let selected;
-  export let data = 0;
+  export let data = [];
   export let type;
+  export let dragging = false;
 
   let position = selected ? -(selected) * 50 : 0;
   let offset = 0;
-  let dragging = false;
 
   let itemWrapper, previousY;
 
+  $: lowerPositionLimit = (data.length - 1) * -50;
 
   onMount(() => {
-   setPosition()
+   renderPosition()
   });
 
   afterUpdate(() => {
-		let selectedPosition = -(selected) * 50
+		const selectedPosition = normalizePosition(-(selected) * 50);
 
     if (!dragging && position !== selectedPosition) {
         position = selectedPosition
-        setPosition()
+        renderPosition()
     }
   });
 
@@ -35,7 +36,15 @@
 		});
   }
 
-  function setPosition(){
+  function normalizePosition(value) {
+    return Math.min(0, Math.max(value, lowerPositionLimit));
+  }
+
+  function setPosition(value) {
+    position = normalizePosition(value)
+  }
+
+  function renderPosition(){
      let itemPosition = `
       transition: transform ${Math.abs(offset) / 100 + 0.1}s;
       transform: translateY(${position}px)
@@ -54,56 +63,56 @@
   }
 
    function onMouseMove (event) {
-    let clientY = event.touches ? event.touches[0].clientY : event.clientY;
+    const clientY = event.touches ? event.touches[0].clientY : event.clientY;
     offset = clientY - previousY;
 
-    let maxPosition = -data.length * 50;
-    let _position = position + offset;
-    position = Math.max(maxPosition, Math.min(50, _position))
+    const maxPosition = -data.length * 50;
+    const _position = position + offset;
+    setPosition(Math.max(maxPosition, Math.min(50, _position)))
     previousY = event.touches ? event.touches[0].clientY : event.clientY;
-    setPosition();
+    renderPosition();
   }
 
   function onMouseUp () {
-    let maxPosition = -(data.length - 1) * 50;
-    let rounderPosition = Math.round((position + offset * 5) / 50) * 50;
-    let finalPosition = Math.max(maxPosition, Math.min(0, rounderPosition));
+    const maxPosition = -(data.length - 1) * 50;
+    const rounderPosition = Math.round((position + offset * 5) / 50) * 50;
+    const finalPosition = Math.max(maxPosition, Math.min(0, rounderPosition));
 
     dragging = false;
-    position = finalPosition;
+    setPosition(finalPosition);
 
     window.removeEventListener('mousemove', onMouseMove)
     window.removeEventListener('mouseup', onMouseUp)
     window.removeEventListener('touchmove', onMouseMove)
     window.removeEventListener('touchend', onMouseUp);
 
-    setPosition();
-    onDateChange(type, -finalPosition / 50);
+    renderPosition();
+    onDateChange(type, -position / 50);
   }
 
   function scrollNext() {
-    position += 50;
-    setPosition();
+    setPosition(position + 50)
+    renderPosition();
     onDateChange(type, -position / 50)
   }
 
   function scrollPrev() {
-    console.log("prev")
-    position -= 50;
-    setPosition();
+    setPosition(position - 50)
+    renderPosition();
     onDateChange(type, -position / 50)
   }
 
   function onWheel (e) {
     if (e.deltaY < 0)
-      {
-        scrollPrev();
-      }
-      if (e.deltaY > 0)
-      {
-        scrollNext();
-      }
+    {
+      scrollPrev();
+    }
+    if (e.deltaY > 0)
+    {
+      scrollNext();
+    }
   }
+
 
 
 </script>

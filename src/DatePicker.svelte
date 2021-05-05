@@ -1,21 +1,68 @@
 <script>
   import { createEventDispatcher } from 'svelte';
   import Switcher from './Switcher.svelte';
+  import {portal} from "svelte-portal";
 
   export let date = new Date();
   export let visible = false;
-  export let years_map = [1900, 2100];
+  export let startDate = new Date(1900, 0, 1);
+  export let endDate = new Date(2100, 11, 31);
   export let classes = '';
+  export let hideReset = false;
 
-  let years_count = ((years_map[1] - years_map[0]) + 1);
+  let yearDragging = false;
+  let monthDragging = false;
+  let dayDragging = false;
 
-  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'July', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec']
-  const YEARS = new Array(years_count).fill(years_map[0]).map((v, i) => v + i);
+  const ALL_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'July', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
+  const ALL_DAYS = new Array(31).fill(0).map((v, i) => i + 1);
   const WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const dispatch = createEventDispatcher();
 
-  let _date, popup, lastDate;
-  $: DAYS = new Array( new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate() ).fill(1).map((v, i) => v + i);
+  function equalYear(date1, date2) {
+    return (date1.getFullYear() == date2.getFullYear());
+  }
+
+  function equalMonth(date1, date2) {
+    return equalYear(date1, date2) && date1.getMonth() == date2.getMonth();
+  }
+
+  function getDaysOfMonth(d) {
+    return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  }
+
+  let _date, lastDate, startMonth = 0, endMonth = 12, startDay = 0, endDay;
+  $: yearsCount = endDate.getFullYear() - startDate.getFullYear() + 1;
+  $: {
+    const lastYear = equalYear(date, endDate);
+    const firstYear = equalYear(date, startDate);
+    if(lastYear) {
+      endMonth = endDate.getMonth() + 1;
+      if(equalMonth(date, endDate)) {
+        endDay = endDate.getDate();
+      } else {
+        endDay = getDaysOfMonth(date);
+      }
+    } else { 
+      endMonth = 12;
+      endDay = getDaysOfMonth(date);
+    } 
+
+    if(firstYear) {
+      startMonth = startDate.getMonth();
+      if(equalMonth(date, startDate)) {
+        startDay = startDate.getDate();
+      } else {
+        startDay = 1;
+      }
+    } else {
+      startMonth = 0;
+      startDay = 1;
+    }
+  }
+  $: YEARS = new Array(yearsCount).fill(startDate.getFullYear()).map((v, i) => v + i);
+  $: DAYS = ALL_DAYS.slice(startDay - 1, endDay);
+  $: MONTHS = ALL_MONTHS.slice(startMonth, endMonth);
   $:  _date = date.toLocaleDateString("en-US");
 
 
@@ -26,10 +73,54 @@
     visible = !visible; 
   }
 
+  const openModal = () => {
+    if(!visible) {
+      toggleVisibility()
+    }
+  }
+
 
   const resetDate = () => {
     date = lastDate;
   }
+
+  function findClosestIntervalMember(start, end, oldVal) {
+    if(oldVal >= end) {
+      return end;
+    }
+    if(oldVal <= start) {
+      return start;
+    }
+
+    return oldVal;
+  }
+
+  function chooseMonthOnYearSwitch(newYear) {
+    if(newYear == startDate.getFullYear()) {
+      return findClosestIntervalMember(startDate.getMonth(), 11, date.getMonth());
+    }
+    if(newYear == endDate.getFullYear()) {
+      return findClosestIntervalMember(0, endDate.getMonth(), date.getMonth());
+    }
+
+    return date.getMonth();
+  }
+
+  function chooseDayOnMonthSwitch(newMonth, year = date.getFullYear()) {
+    const oldMonth = date.getMonth();
+    const oldDay = date.getDate();
+    const newMonthDays = getDaysOfMonth(new Date(year, newMonth, 1));
+    if(oldMonth == startDate.getMonth()) {
+      return findClosestIntervalMember(startDate.getDate(), newMonthDays, date.getDate());
+    }
+    if(oldMonth == endDate.getMonth()) {
+      return findClosestIntervalMember(1, endDate.getDate(), date.getDate());
+    }
+
+    return newMonthDays;
+  }
+
+  
 
   const dateChanged = (event) => {
 
@@ -37,16 +128,19 @@
     let newDate = new Date();
 
     if (type === 'day') {
-      newDate = new Date(date.getFullYear(), date.getMonth(), changedData + 1)
+      newDate = new Date(date.getFullYear(), date.getMonth(), changedData + startDay)
     } else if (type === 'month') {
-      let maxDayInSelectedMonth = new Date(date.getFullYear(), changedData + 1, 0).getDate()
-      let day = Math.min(date.getDate(), maxDayInSelectedMonth)
-      newDate = new Date(date.getFullYear(), changedData, day)
+      const selectedMonth = changedData + startMonth;
+      const maxDayInSelectedMonth = new Date(date.getFullYear(), selectedMonth + 1, 0).getDate()
+      const day = Math.max(Math.min(date.getDate(), maxDayInSelectedMonth, endDay), startDay + 1);
+      newDate = new Date(date.getFullYear(), selectedMonth, day);
     } else if (type === 'year') {
-      let maxDayInSelectedMonth = new Date(years_map[1] + changedData, date.getMonth() + 1, 0).getDate()
-      let day = Math.min(date.getDate(), maxDayInSelectedMonth)
-      newDate = new Date(1900 + changedData, date.getMonth(), day)
-
+      const maxDayInSelectedMonth = new Date(endDate.getFullYear() + changedData, date.getMonth() + 1, 0).getDate();
+      // const day = Math.max(Math.min(date.getDate(), maxDayInSelectedMonth, endDay), startDay + 1);
+      const year = startDate.getFullYear() + changedData;
+      const month = chooseMonthOnYearSwitch(year);
+      const day = chooseDayOnMonthSwitch(month, year);
+      newDate = new Date(year, month, day);
     }
 
     date = newDate;
@@ -59,10 +153,11 @@
   }
 
   function clickedOutside(event){
-    if(event.target == popup){
+    if(![dayDragging, monthDragging, yearDragging].some(Boolean)) {
       toggleVisibility();
     }
   }
+  
 </script>
 
 <style>
@@ -125,20 +220,36 @@
 }
 </style>
 
-<input type="text" class='{classes}' readonly value={_date} on:focus={toggleVisibility}>
+<input type="text" class='{classes}' readonly value={_date} on:focus={openModal}>
 {#if visible}
-  <div class="touch-date-popup" on:click={clickedOutside} bind:this={popup}>
+  <div class="touch-date-popup" use:portal hidden on:mousedown|self={clickedOutside} >
     <div>
       <div class="touch-date-wrapper">
-        <div class='date-line'>{ date.getDate() } { MONTHS[date.getMonth()] } { date.getFullYear() }</div>
+        <div class='date-line'>{ date.getDate() } { ALL_MONTHS[date.getMonth()] } { date.getFullYear() }</div>
         <p class='day-line'>{ WEEKDAY[date.getDay()] }</p>
         <div class='touch-date-picker'>
-          <Switcher type='day' data={DAYS} selected={date.getDate() - 1} on:dateChange={dateChanged}/>
-          <Switcher type='month' data={MONTHS} selected={date.getMonth()} on:dateChange={dateChanged}/>
-          <Switcher type='year' data={YEARS} selected={date.getYear()} on:dateChange={dateChanged}/>
+          <Switcher 
+            bind:dragging={dayDragging} 
+            type='day' 
+            data={DAYS} 
+            selected={date.getDate() - startDay} 
+            on:dateChange={dateChanged}/>
+          <Switcher 
+            bind:dragging={monthDragging} 
+            type='month' data={MONTHS} 
+            selected={date.getMonth() - startMonth} 
+            on:dateChange={dateChanged}/>
+          <Switcher 
+            bind:dragging={yearDragging} 
+            type='year' 
+            data={YEARS} 
+            selected={date.getFullYear() - startDate.getFullYear()} 
+            on:dateChange={dateChanged}/>
         </div>
         <div class='touch-date-reset'>
-          <button on:click|stopPropagation={resetDate}>Reset</button>
+          {#if !hideReset}
+            <button on:click|stopPropagation={resetDate}>Reset</button>
+          {/if}
           <button on:click|stopPropagation={confirmDate}>Ok</button>
         </div>
       </div>

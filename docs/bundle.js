@@ -25,6 +25,9 @@ var app = (function () {
     function null_to_empty(value) {
         return value == null ? '' : value;
     }
+    function action_destroyer(action_result) {
+        return action_result && is_function(action_result.destroy) ? action_result.destroy : noop;
+    }
 
     function append(target, node) {
         target.appendChild(node);
@@ -69,6 +72,13 @@ var app = (function () {
             event.stopPropagation();
             // @ts-ignore
             return fn.call(this, event);
+        };
+    }
+    function self(fn) {
+        return function (event) {
+            // @ts-ignore
+            if (event.target === this)
+                fn.call(this, event);
         };
     }
     function attr(node, attribute, value) {
@@ -132,6 +142,10 @@ var app = (function () {
             update_scheduled = true;
             resolved_promise.then(flush);
         }
+    }
+    function tick() {
+        schedule_update();
+        return resolved_promise;
     }
     function add_render_callback(fn) {
         render_callbacks.push(fn);
@@ -363,14 +377,14 @@ var app = (function () {
 
     function get_each_context(ctx, list, i) {
     	const child_ctx = ctx.slice();
-    	child_ctx[18] = list[i];
+    	child_ctx[21] = list[i];
     	return child_ctx;
     }
 
-    // (163:3) {#each data as item }
+    // (172:3) {#each data as item }
     function create_each_block(ctx) {
     	let li;
-    	let t_value = /*item*/ ctx[18] + "";
+    	let t_value = /*item*/ ctx[21] + "";
     	let t;
 
     	return {
@@ -384,7 +398,7 @@ var app = (function () {
     			append(li, t);
     		},
     		p(ctx, dirty) {
-    			if (dirty & /*data*/ 1 && t_value !== (t_value = /*item*/ ctx[18] + "")) set_data(t, t_value);
+    			if (dirty & /*data*/ 1 && t_value !== (t_value = /*item*/ ctx[21] + "")) set_data(t, t_value);
     		},
     		d(detaching) {
     			if (detaching) detach(li);
@@ -436,7 +450,7 @@ var app = (function () {
     				each_blocks[i].m(ul, null);
     			}
 
-    			/*ul_binding*/ ctx[8](ul);
+    			/*ul_binding*/ ctx[9](ul);
     			append(div2, t1);
     			append(div2, div1);
 
@@ -481,7 +495,7 @@ var app = (function () {
     		d(detaching) {
     			if (detaching) detach(div2);
     			destroy_each(each_blocks, detaching);
-    			/*ul_binding*/ ctx[8](null);
+    			/*ul_binding*/ ctx[9](null);
     			mounted = false;
     			run_all(dispose);
     		}
@@ -489,25 +503,26 @@ var app = (function () {
     }
 
     function instance($$self, $$props, $$invalidate) {
+    	let lowerPositionLimit;
     	const dispatch = createEventDispatcher();
     	let { selected } = $$props;
-    	let { data = 0 } = $$props;
+    	let { data = [] } = $$props;
     	let { type } = $$props;
+    	let { dragging = false } = $$props;
     	let position = selected ? -selected * 50 : 0;
     	let offset = 0;
-    	let dragging = false;
     	let itemWrapper, previousY;
 
     	onMount(() => {
-    		setPosition();
+    		renderPosition();
     	});
 
     	afterUpdate(() => {
-    		let selectedPosition = -selected * 50;
+    		const selectedPosition = normalizePosition(-selected * 50);
 
     		if (!dragging && position !== selectedPosition) {
     			position = selectedPosition;
-    			setPosition();
+    			renderPosition();
     		}
     	});
 
@@ -515,7 +530,15 @@ var app = (function () {
     		dispatch("dateChange", { type, changedData });
     	}
 
-    	function setPosition() {
+    	function normalizePosition(value) {
+    		return Math.min(0, Math.max(value, lowerPositionLimit));
+    	}
+
+    	function setPosition(value) {
+    		position = normalizePosition(value);
+    	}
+
+    	function renderPosition() {
     		let itemPosition = `
       transition: transform ${Math.abs(offset) / 100 + 0.1}s;
       transform: translateY(${position}px)
@@ -526,7 +549,7 @@ var app = (function () {
 
     	function onMouseDown(event) {
     		previousY = event.touches ? event.touches[0].clientY : event.clientY;
-    		dragging = true;
+    		$$invalidate(6, dragging = true);
     		window.addEventListener("mousemove", onMouseMove);
     		window.addEventListener("mouseup", onMouseUp);
     		window.addEventListener("touchmove", onMouseMove);
@@ -534,39 +557,38 @@ var app = (function () {
     	}
 
     	function onMouseMove(event) {
-    		let clientY = event.touches ? event.touches[0].clientY : event.clientY;
+    		const clientY = event.touches ? event.touches[0].clientY : event.clientY;
     		offset = clientY - previousY;
-    		let maxPosition = -data.length * 50;
-    		let _position = position + offset;
-    		position = Math.max(maxPosition, Math.min(50, _position));
+    		const maxPosition = -data.length * 50;
+    		const _position = position + offset;
+    		setPosition(Math.max(maxPosition, Math.min(50, _position)));
     		previousY = event.touches ? event.touches[0].clientY : event.clientY;
-    		setPosition();
+    		renderPosition();
     	}
 
     	function onMouseUp() {
-    		let maxPosition = -(data.length - 1) * 50;
-    		let rounderPosition = Math.round((position + offset * 5) / 50) * 50;
-    		let finalPosition = Math.max(maxPosition, Math.min(0, rounderPosition));
-    		dragging = false;
-    		position = finalPosition;
+    		const maxPosition = -(data.length - 1) * 50;
+    		const rounderPosition = Math.round((position + offset * 5) / 50) * 50;
+    		const finalPosition = Math.max(maxPosition, Math.min(0, rounderPosition));
+    		$$invalidate(6, dragging = false);
+    		setPosition(finalPosition);
     		window.removeEventListener("mousemove", onMouseMove);
     		window.removeEventListener("mouseup", onMouseUp);
     		window.removeEventListener("touchmove", onMouseMove);
     		window.removeEventListener("touchend", onMouseUp);
-    		setPosition();
-    		onDateChange(type, -finalPosition / 50);
+    		renderPosition();
+    		onDateChange(type, -position / 50);
     	}
 
     	function scrollNext() {
-    		position += 50;
-    		setPosition();
+    		setPosition(position + 50);
+    		renderPosition();
     		onDateChange(type, -position / 50);
     	}
 
     	function scrollPrev() {
-    		console.log("prev");
-    		position -= 50;
-    		setPosition();
+    		setPosition(position - 50);
+    		renderPosition();
     		onDateChange(type, -position / 50);
     	}
 
@@ -588,9 +610,16 @@ var app = (function () {
     	}
 
     	$$self.$$set = $$props => {
-    		if ("selected" in $$props) $$invalidate(6, selected = $$props.selected);
+    		if ("selected" in $$props) $$invalidate(7, selected = $$props.selected);
     		if ("data" in $$props) $$invalidate(0, data = $$props.data);
-    		if ("type" in $$props) $$invalidate(7, type = $$props.type);
+    		if ("type" in $$props) $$invalidate(8, type = $$props.type);
+    		if ("dragging" in $$props) $$invalidate(6, dragging = $$props.dragging);
+    	};
+
+    	$$self.$$.update = () => {
+    		if ($$self.$$.dirty & /*data*/ 1) {
+    			 lowerPositionLimit = (data.length - 1) * -50;
+    		}
     	};
 
     	return [
@@ -600,6 +629,7 @@ var app = (function () {
     		scrollNext,
     		scrollPrev,
     		onWheel,
+    		dragging,
     		selected,
     		type,
     		ul_binding
@@ -609,8 +639,53 @@ var app = (function () {
     class Switcher extends SvelteComponent {
     	constructor(options) {
     		super();
-    		init(this, options, instance, create_fragment, safe_not_equal, { selected: 6, data: 0, type: 7 });
+
+    		init(this, options, instance, create_fragment, safe_not_equal, {
+    			selected: 7,
+    			data: 0,
+    			type: 8,
+    			dragging: 6
+    		});
     	}
+    }
+
+    /* node_modules/svelte-portal/src/Portal.svelte generated by Svelte v3.37.0 */
+
+    function portal(el, target = "body") {
+    	let targetEl;
+
+    	async function update(newTarget) {
+    		target = newTarget;
+
+    		if (typeof target === "string") {
+    			targetEl = document.querySelector(target);
+
+    			if (targetEl === null) {
+    				await tick();
+    				targetEl = document.querySelector(target);
+    			}
+
+    			if (targetEl === null) {
+    				throw new Error(`No element found matching css selector: "${target}"`);
+    			}
+    		} else if (target instanceof HTMLElement) {
+    			targetEl = target;
+    		} else {
+    			throw new TypeError(`Unknown portal target type: ${target === null ? "null" : typeof target}. Allowed types: string (CSS selector) or HTMLElement.`);
+    		}
+
+    		targetEl.appendChild(el);
+    		el.hidden = false;
+    	}
+
+    	function destroy() {
+    		if (el.parentNode) {
+    			el.parentNode.removeChild(el);
+    		}
+    	}
+
+    	update(target);
+    	return { update, destroy };
     }
 
     /* src/DatePicker.svelte generated by Svelte v3.37.0 */
@@ -623,60 +698,88 @@ var app = (function () {
     	let t0_value = /*date*/ ctx[0].getDate() + "";
     	let t0;
     	let t1;
-    	let t2_value = /*MONTHS*/ ctx[6][/*date*/ ctx[0].getMonth()] + "";
+    	let t2_value = /*ALL_MONTHS*/ ctx[14][/*date*/ ctx[0].getMonth()] + "";
     	let t2;
     	let t3;
     	let t4_value = /*date*/ ctx[0].getFullYear() + "";
     	let t4;
     	let t5;
     	let p;
-    	let t6_value = /*WEEKDAY*/ ctx[8][/*date*/ ctx[0].getDay()] + "";
+    	let t6_value = /*WEEKDAY*/ ctx[15][/*date*/ ctx[0].getDay()] + "";
     	let t6;
     	let t7;
     	let div1;
     	let switcher0;
+    	let updating_dragging;
     	let t8;
     	let switcher1;
+    	let updating_dragging_1;
     	let t9;
     	let switcher2;
+    	let updating_dragging_2;
     	let t10;
     	let div2;
-    	let button0;
-    	let t12;
-    	let button1;
+    	let t11;
+    	let button;
+    	let portal_action;
     	let current;
     	let mounted;
     	let dispose;
 
-    	switcher0 = new Switcher({
-    			props: {
-    				type: "day",
-    				data: /*DAYS*/ ctx[5],
-    				selected: /*date*/ ctx[0].getDate() - 1
-    			}
-    		});
+    	function switcher0_dragging_binding(value) {
+    		/*switcher0_dragging_binding*/ ctx[25](value);
+    	}
 
-    	switcher0.$on("dateChange", /*dateChanged*/ ctx[11]);
+    	let switcher0_props = {
+    		type: "day",
+    		data: /*DAYS*/ ctx[12],
+    		selected: /*date*/ ctx[0].getDate() - /*startDay*/ ctx[6]
+    	};
 
-    	switcher1 = new Switcher({
-    			props: {
-    				type: "month",
-    				data: /*MONTHS*/ ctx[6],
-    				selected: /*date*/ ctx[0].getMonth()
-    			}
-    		});
+    	if (/*dayDragging*/ ctx[9] !== void 0) {
+    		switcher0_props.dragging = /*dayDragging*/ ctx[9];
+    	}
 
-    	switcher1.$on("dateChange", /*dateChanged*/ ctx[11]);
+    	switcher0 = new Switcher({ props: switcher0_props });
+    	binding_callbacks.push(() => bind(switcher0, "dragging", switcher0_dragging_binding));
+    	switcher0.$on("dateChange", /*dateChanged*/ ctx[18]);
 
-    	switcher2 = new Switcher({
-    			props: {
-    				type: "year",
-    				data: /*YEARS*/ ctx[7],
-    				selected: /*date*/ ctx[0].getYear()
-    			}
-    		});
+    	function switcher1_dragging_binding(value) {
+    		/*switcher1_dragging_binding*/ ctx[26](value);
+    	}
 
-    	switcher2.$on("dateChange", /*dateChanged*/ ctx[11]);
+    	let switcher1_props = {
+    		type: "month",
+    		data: /*MONTHS*/ ctx[13],
+    		selected: /*date*/ ctx[0].getMonth() - /*startMonth*/ ctx[5]
+    	};
+
+    	if (/*monthDragging*/ ctx[8] !== void 0) {
+    		switcher1_props.dragging = /*monthDragging*/ ctx[8];
+    	}
+
+    	switcher1 = new Switcher({ props: switcher1_props });
+    	binding_callbacks.push(() => bind(switcher1, "dragging", switcher1_dragging_binding));
+    	switcher1.$on("dateChange", /*dateChanged*/ ctx[18]);
+
+    	function switcher2_dragging_binding(value) {
+    		/*switcher2_dragging_binding*/ ctx[27](value);
+    	}
+
+    	let switcher2_props = {
+    		type: "year",
+    		data: /*YEARS*/ ctx[11],
+    		selected: /*date*/ ctx[0].getFullYear() - /*startDate*/ ctx[2].getFullYear()
+    	};
+
+    	if (/*yearDragging*/ ctx[7] !== void 0) {
+    		switcher2_props.dragging = /*yearDragging*/ ctx[7];
+    	}
+
+    	switcher2 = new Switcher({ props: switcher2_props });
+    	binding_callbacks.push(() => bind(switcher2, "dragging", switcher2_dragging_binding));
+    	switcher2.$on("dateChange", /*dateChanged*/ ctx[18]);
+    	let if_block = !/*hideReset*/ ctx[4] && create_if_block_1(ctx);
 
     	return {
     		c() {
@@ -701,20 +804,19 @@ var app = (function () {
     			create_component(switcher2.$$.fragment);
     			t10 = space();
     			div2 = element("div");
-    			button0 = element("button");
-    			button0.textContent = "Reset";
-    			t12 = space();
-    			button1 = element("button");
-    			button1.textContent = "Ok";
+    			if (if_block) if_block.c();
+    			t11 = space();
+    			button = element("button");
+    			button.textContent = "Ok";
     			attr(div0, "class", "date-line svelte-1gfjl4n");
     			attr(p, "class", "day-line svelte-1gfjl4n");
     			attr(div1, "class", "touch-date-picker svelte-1gfjl4n");
-    			attr(button0, "class", "svelte-1gfjl4n");
-    			attr(button1, "class", "svelte-1gfjl4n");
+    			attr(button, "class", "svelte-1gfjl4n");
     			attr(div2, "class", "touch-date-reset svelte-1gfjl4n");
     			attr(div3, "class", "touch-date-wrapper svelte-1gfjl4n");
     			attr(div4, "class", "svelte-1gfjl4n");
     			attr(div5, "class", "touch-date-popup svelte-1gfjl4n");
+    			div5.hidden = true;
     		},
     		m(target, anchor) {
     			insert(target, div5, anchor);
@@ -738,37 +840,72 @@ var app = (function () {
     			mount_component(switcher2, div1, null);
     			append(div3, t10);
     			append(div3, div2);
-    			append(div2, button0);
-    			append(div2, t12);
-    			append(div2, button1);
-    			/*div5_binding*/ ctx[15](div5);
+    			if (if_block) if_block.m(div2, null);
+    			append(div2, t11);
+    			append(div2, button);
     			current = true;
 
     			if (!mounted) {
     				dispose = [
-    					listen(button0, "click", stop_propagation(/*resetDate*/ ctx[10])),
-    					listen(button1, "click", stop_propagation(/*confirmDate*/ ctx[12])),
-    					listen(div5, "click", /*clickedOutside*/ ctx[13])
+    					listen(button, "click", stop_propagation(/*confirmDate*/ ctx[19])),
+    					action_destroyer(portal_action = portal.call(null, div5)),
+    					listen(div5, "mousedown", self(/*clickedOutside*/ ctx[20]))
     				];
 
     				mounted = true;
     			}
     		},
     		p(ctx, dirty) {
-    			if ((!current || dirty & /*date*/ 1) && t0_value !== (t0_value = /*date*/ ctx[0].getDate() + "")) set_data(t0, t0_value);
-    			if ((!current || dirty & /*date*/ 1) && t2_value !== (t2_value = /*MONTHS*/ ctx[6][/*date*/ ctx[0].getMonth()] + "")) set_data(t2, t2_value);
-    			if ((!current || dirty & /*date*/ 1) && t4_value !== (t4_value = /*date*/ ctx[0].getFullYear() + "")) set_data(t4, t4_value);
-    			if ((!current || dirty & /*date*/ 1) && t6_value !== (t6_value = /*WEEKDAY*/ ctx[8][/*date*/ ctx[0].getDay()] + "")) set_data(t6, t6_value);
+    			if ((!current || dirty[0] & /*date*/ 1) && t0_value !== (t0_value = /*date*/ ctx[0].getDate() + "")) set_data(t0, t0_value);
+    			if ((!current || dirty[0] & /*date*/ 1) && t2_value !== (t2_value = /*ALL_MONTHS*/ ctx[14][/*date*/ ctx[0].getMonth()] + "")) set_data(t2, t2_value);
+    			if ((!current || dirty[0] & /*date*/ 1) && t4_value !== (t4_value = /*date*/ ctx[0].getFullYear() + "")) set_data(t4, t4_value);
+    			if ((!current || dirty[0] & /*date*/ 1) && t6_value !== (t6_value = /*WEEKDAY*/ ctx[15][/*date*/ ctx[0].getDay()] + "")) set_data(t6, t6_value);
     			const switcher0_changes = {};
-    			if (dirty & /*DAYS*/ 32) switcher0_changes.data = /*DAYS*/ ctx[5];
-    			if (dirty & /*date*/ 1) switcher0_changes.selected = /*date*/ ctx[0].getDate() - 1;
+    			if (dirty[0] & /*DAYS*/ 4096) switcher0_changes.data = /*DAYS*/ ctx[12];
+    			if (dirty[0] & /*date, startDay*/ 65) switcher0_changes.selected = /*date*/ ctx[0].getDate() - /*startDay*/ ctx[6];
+
+    			if (!updating_dragging && dirty[0] & /*dayDragging*/ 512) {
+    				updating_dragging = true;
+    				switcher0_changes.dragging = /*dayDragging*/ ctx[9];
+    				add_flush_callback(() => updating_dragging = false);
+    			}
+
     			switcher0.$set(switcher0_changes);
     			const switcher1_changes = {};
-    			if (dirty & /*date*/ 1) switcher1_changes.selected = /*date*/ ctx[0].getMonth();
+    			if (dirty[0] & /*MONTHS*/ 8192) switcher1_changes.data = /*MONTHS*/ ctx[13];
+    			if (dirty[0] & /*date, startMonth*/ 33) switcher1_changes.selected = /*date*/ ctx[0].getMonth() - /*startMonth*/ ctx[5];
+
+    			if (!updating_dragging_1 && dirty[0] & /*monthDragging*/ 256) {
+    				updating_dragging_1 = true;
+    				switcher1_changes.dragging = /*monthDragging*/ ctx[8];
+    				add_flush_callback(() => updating_dragging_1 = false);
+    			}
+
     			switcher1.$set(switcher1_changes);
     			const switcher2_changes = {};
-    			if (dirty & /*date*/ 1) switcher2_changes.selected = /*date*/ ctx[0].getYear();
+    			if (dirty[0] & /*YEARS*/ 2048) switcher2_changes.data = /*YEARS*/ ctx[11];
+    			if (dirty[0] & /*date, startDate*/ 5) switcher2_changes.selected = /*date*/ ctx[0].getFullYear() - /*startDate*/ ctx[2].getFullYear();
+
+    			if (!updating_dragging_2 && dirty[0] & /*yearDragging*/ 128) {
+    				updating_dragging_2 = true;
+    				switcher2_changes.dragging = /*yearDragging*/ ctx[7];
+    				add_flush_callback(() => updating_dragging_2 = false);
+    			}
+
     			switcher2.$set(switcher2_changes);
+
+    			if (!/*hideReset*/ ctx[4]) {
+    				if (if_block) {
+    					if_block.p(ctx, dirty);
+    				} else {
+    					if_block = create_if_block_1(ctx);
+    					if_block.c();
+    					if_block.m(div2, t11);
+    				}
+    			} else if (if_block) {
+    				if_block.d(1);
+    				if_block = null;
+    			}
     		},
     		i(local) {
     			if (current) return;
@@ -788,9 +925,38 @@ var app = (function () {
     			destroy_component(switcher0);
     			destroy_component(switcher1);
     			destroy_component(switcher2);
-    			/*div5_binding*/ ctx[15](null);
+    			if (if_block) if_block.d();
     			mounted = false;
     			run_all(dispose);
+    		}
+    	};
+    }
+
+    // (250:10) {#if !hideReset}
+    function create_if_block_1(ctx) {
+    	let button;
+    	let mounted;
+    	let dispose;
+
+    	return {
+    		c() {
+    			button = element("button");
+    			button.textContent = "Reset";
+    			attr(button, "class", "svelte-1gfjl4n");
+    		},
+    		m(target, anchor) {
+    			insert(target, button, anchor);
+
+    			if (!mounted) {
+    				dispose = listen(button, "click", stop_propagation(/*resetDate*/ ctx[17]));
+    				mounted = true;
+    			}
+    		},
+    		p: noop,
+    		d(detaching) {
+    			if (detaching) detach(button);
+    			mounted = false;
+    			dispose();
     		}
     	};
     }
@@ -812,9 +978,9 @@ var app = (function () {
     			if (if_block) if_block.c();
     			if_block_anchor = empty();
     			attr(input, "type", "text");
-    			attr(input, "class", input_class_value = "" + (null_to_empty(/*classes*/ ctx[2]) + " svelte-1gfjl4n"));
+    			attr(input, "class", input_class_value = "" + (null_to_empty(/*classes*/ ctx[3]) + " svelte-1gfjl4n"));
     			input.readOnly = true;
-    			input.value = /*_date*/ ctx[3];
+    			input.value = /*_date*/ ctx[10];
     		},
     		m(target, anchor) {
     			insert(target, input, anchor);
@@ -824,24 +990,24 @@ var app = (function () {
     			current = true;
 
     			if (!mounted) {
-    				dispose = listen(input, "focus", /*toggleVisibility*/ ctx[9]);
+    				dispose = listen(input, "focus", /*openModal*/ ctx[16]);
     				mounted = true;
     			}
     		},
-    		p(ctx, [dirty]) {
-    			if (!current || dirty & /*classes*/ 4 && input_class_value !== (input_class_value = "" + (null_to_empty(/*classes*/ ctx[2]) + " svelte-1gfjl4n"))) {
+    		p(ctx, dirty) {
+    			if (!current || dirty[0] & /*classes*/ 8 && input_class_value !== (input_class_value = "" + (null_to_empty(/*classes*/ ctx[3]) + " svelte-1gfjl4n"))) {
     				attr(input, "class", input_class_value);
     			}
 
-    			if (!current || dirty & /*_date*/ 8 && input.value !== /*_date*/ ctx[3]) {
-    				input.value = /*_date*/ ctx[3];
+    			if (!current || dirty[0] & /*_date*/ 1024 && input.value !== /*_date*/ ctx[10]) {
+    				input.value = /*_date*/ ctx[10];
     			}
 
     			if (/*visible*/ ctx[1]) {
     				if (if_block) {
     					if_block.p(ctx, dirty);
 
-    					if (dirty & /*visible*/ 2) {
+    					if (dirty[0] & /*visible*/ 2) {
     						transition_in(if_block, 1);
     					}
     				} else {
@@ -880,15 +1046,46 @@ var app = (function () {
     	};
     }
 
+    function equalYear(date1, date2) {
+    	return date1.getFullYear() == date2.getFullYear();
+    }
+
+    function equalMonth(date1, date2) {
+    	return equalYear(date1, date2) && date1.getMonth() == date2.getMonth();
+    }
+
+    function getDaysOfMonth(d) {
+    	return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    }
+
+    function findClosestIntervalMember(start, end, oldVal) {
+    	if (oldVal >= end) {
+    		return end;
+    	}
+
+    	if (oldVal <= start) {
+    		return start;
+    	}
+
+    	return oldVal;
+    }
+
     function instance$1($$self, $$props, $$invalidate) {
+    	let yearsCount;
+    	let YEARS;
     	let DAYS;
+    	let MONTHS;
     	let { date = new Date() } = $$props;
     	let { visible = false } = $$props;
-    	let { years_map = [1900, 2100] } = $$props;
+    	let { startDate = new Date(1900, 0, 1) } = $$props;
+    	let { endDate = new Date(2100, 11, 31) } = $$props;
     	let { classes = "" } = $$props;
-    	let years_count = years_map[1] - years_map[0] + 1;
+    	let { hideReset = false } = $$props;
+    	let yearDragging = false;
+    	let monthDragging = false;
+    	let dayDragging = false;
 
-    	const MONTHS = [
+    	const ALL_MONTHS = [
     		"Jan",
     		"Feb",
     		"Mar",
@@ -903,10 +1100,10 @@ var app = (function () {
     		"Dec"
     	];
 
-    	const YEARS = new Array(years_count).fill(years_map[0]).map((v, i) => v + i);
+    	const ALL_DAYS = new Array(31).fill(0).map((v, i) => i + 1);
     	const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     	const dispatch = createEventDispatcher();
-    	let _date, popup, lastDate;
+    	let _date, lastDate, startMonth = 0, endMonth = 12, startDay = 0, endDay;
 
     	const toggleVisibility = () => {
     		if (!visible) {
@@ -916,24 +1113,64 @@ var app = (function () {
     		$$invalidate(1, visible = !visible);
     	};
 
+    	const openModal = () => {
+    		if (!visible) {
+    			toggleVisibility();
+    		}
+    	};
+
     	const resetDate = () => {
     		$$invalidate(0, date = lastDate);
     	};
+
+    	function chooseMonthOnYearSwitch(newYear) {
+    		if (newYear == startDate.getFullYear()) {
+    			return findClosestIntervalMember(startDate.getMonth(), 11, date.getMonth());
+    		}
+
+    		if (newYear == endDate.getFullYear()) {
+    			return findClosestIntervalMember(0, endDate.getMonth(), date.getMonth());
+    		}
+
+    		return date.getMonth();
+    	}
+
+    	function chooseDayOnMonthSwitch(newMonth, year = date.getFullYear()) {
+    		const oldMonth = date.getMonth();
+    		const oldDay = date.getDate();
+    		const newMonthDays = getDaysOfMonth(new Date(year, newMonth, 1));
+
+    		if (oldMonth == startDate.getMonth()) {
+    			return findClosestIntervalMember(startDate.getDate(), newMonthDays, date.getDate());
+    		}
+
+    		if (oldMonth == endDate.getMonth()) {
+    			return findClosestIntervalMember(1, endDate.getDate(), date.getDate());
+    		}
+
+    		return newMonthDays;
+    	}
 
     	const dateChanged = event => {
     		let { type, changedData } = event.detail;
     		let newDate = new Date();
 
     		if (type === "day") {
-    			newDate = new Date(date.getFullYear(), date.getMonth(), changedData + 1);
+    			newDate = new Date(date.getFullYear(), date.getMonth(), changedData + startDay);
     		} else if (type === "month") {
-    			let maxDayInSelectedMonth = new Date(date.getFullYear(), changedData + 1, 0).getDate();
-    			let day = Math.min(date.getDate(), maxDayInSelectedMonth);
-    			newDate = new Date(date.getFullYear(), changedData, day);
+    			const selectedMonth = changedData + startMonth;
+    			const maxDayInSelectedMonth = new Date(date.getFullYear(), selectedMonth + 1, 0).getDate();
+    			const day = Math.max(Math.min(date.getDate(), maxDayInSelectedMonth, endDay), startDay + 1);
+    			newDate = new Date(date.getFullYear(), selectedMonth, day);
     		} else if (type === "year") {
-    			let maxDayInSelectedMonth = new Date(years_map[1] + changedData, date.getMonth() + 1, 0).getDate();
-    			let day = Math.min(date.getDate(), maxDayInSelectedMonth);
-    			newDate = new Date(1900 + changedData, date.getMonth(), day);
+    			const maxDayInSelectedMonth = new Date(endDate.getFullYear() + changedData, date.getMonth() + 1, 0).getDate();
+
+    			// const day = Math.max(Math.min(date.getDate(), maxDayInSelectedMonth, endDay), startDay + 1);
+    			const year = startDate.getFullYear() + changedData;
+
+    			const month = chooseMonthOnYearSwitch(year);
+    			const day = chooseDayOnMonthSwitch(month, year);
+    			newDate = new Date(year, month, day);
     		}
 
     		$$invalidate(0, date = newDate);
@@ -946,52 +1183,119 @@ var app = (function () {
     	}
 
     	function clickedOutside(event) {
-    		if (event.target == popup) {
+    		if (![dayDragging, monthDragging, yearDragging].some(Boolean)) {
     			toggleVisibility();
     		}
     	}
 
-    	function div5_binding($$value) {
-    		binding_callbacks[$$value ? "unshift" : "push"](() => {
-    			popup = $$value;
-    			$$invalidate(4, popup);
-    		});
+    	function switcher0_dragging_binding(value) {
+    		dayDragging = value;
+    		$$invalidate(9, dayDragging);
+    	}
+
+    	function switcher1_dragging_binding(value) {
+    		monthDragging = value;
+    		$$invalidate(8, monthDragging);
+    	}
+
+    	function switcher2_dragging_binding(value) {
+    		yearDragging = value;
+    		$$invalidate(7, yearDragging);
     	}
 
     	$$self.$$set = $$props => {
     		if ("date" in $$props) $$invalidate(0, date = $$props.date);
     		if ("visible" in $$props) $$invalidate(1, visible = $$props.visible);
-    		if ("years_map" in $$props) $$invalidate(14, years_map = $$props.years_map);
-    		if ("classes" in $$props) $$invalidate(2, classes = $$props.classes);
+    		if ("startDate" in $$props) $$invalidate(2, startDate = $$props.startDate);
+    		if ("endDate" in $$props) $$invalidate(21, endDate = $$props.endDate);
+    		if ("classes" in $$props) $$invalidate(3, classes = $$props.classes);
+    		if ("hideReset" in $$props) $$invalidate(4, hideReset = $$props.hideReset);
     	};
 
     	$$self.$$.update = () => {
-    		if ($$self.$$.dirty & /*date*/ 1) {
-    			 $$invalidate(5, DAYS = new Array(new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()).fill(1).map((v, i) => v + i));
+    		if ($$self.$$.dirty[0] & /*endDate, startDate*/ 2097156) {
+    			 $$invalidate(24, yearsCount = endDate.getFullYear() - startDate.getFullYear() + 1);
     		}
 
-    		if ($$self.$$.dirty & /*date*/ 1) {
-    			 $$invalidate(3, _date = date.toLocaleDateString("en-US"));
+    		if ($$self.$$.dirty[0] & /*date, endDate, startDate*/ 2097157) {
+    			 {
+    				const lastYear = equalYear(date, endDate);
+    				const firstYear = equalYear(date, startDate);
+
+    				if (lastYear) {
+    					$$invalidate(22, endMonth = endDate.getMonth() + 1);
+
+    					if (equalMonth(date, endDate)) {
+    						$$invalidate(23, endDay = endDate.getDate());
+    					} else {
+    						$$invalidate(23, endDay = getDaysOfMonth(date));
+    					}
+    				} else {
+    					$$invalidate(22, endMonth = 12);
+    					$$invalidate(23, endDay = getDaysOfMonth(date));
+    				}
+
+    				if (firstYear) {
+    					$$invalidate(5, startMonth = startDate.getMonth());
+
+    					if (equalMonth(date, startDate)) {
+    						$$invalidate(6, startDay = startDate.getDate());
+    					} else {
+    						$$invalidate(6, startDay = 1);
+    					}
+    				} else {
+    					$$invalidate(5, startMonth = 0);
+    					$$invalidate(6, startDay = 1);
+    				}
+    			}
+    		}
+
+    		if ($$self.$$.dirty[0] & /*yearsCount, startDate*/ 16777220) {
+    			 $$invalidate(11, YEARS = new Array(yearsCount).fill(startDate.getFullYear()).map((v, i) => v + i));
+    		}
+
+    		if ($$self.$$.dirty[0] & /*startDay, endDay*/ 8388672) {
+    			 $$invalidate(12, DAYS = ALL_DAYS.slice(startDay - 1, endDay));
+    		}
+
+    		if ($$self.$$.dirty[0] & /*startMonth, endMonth*/ 4194336) {
+    			 $$invalidate(13, MONTHS = ALL_MONTHS.slice(startMonth, endMonth));
+    		}
+
+    		if ($$self.$$.dirty[0] & /*date*/ 1) {
+    			 $$invalidate(10, _date = date.toLocaleDateString("en-US"));
     		}
     	};
 
     	return [
     		date,
     		visible,
+    		startDate,
     		classes,
+    		hideReset,
+    		startMonth,
+    		startDay,
+    		yearDragging,
+    		monthDragging,
+    		dayDragging,
     		_date,
-    		popup,
+    		YEARS,
     		DAYS,
     		MONTHS,
-    		YEARS,
+    		ALL_MONTHS,
     		WEEKDAY,
-    		toggleVisibility,
+    		openModal,
     		resetDate,
     		dateChanged,
     		confirmDate,
     		clickedOutside,
-    		years_map,
-    		div5_binding
+    		endDate,
+    		endMonth,
+    		endDay,
+    		yearsCount,
+    		switcher0_dragging_binding,
+    		switcher1_dragging_binding,
+    		switcher2_dragging_binding
     	];
     }
 
@@ -999,12 +1303,22 @@ var app = (function () {
     	constructor(options) {
     		super();
 
-    		init(this, options, instance$1, create_fragment$1, safe_not_equal, {
-    			date: 0,
-    			visible: 1,
-    			years_map: 14,
-    			classes: 2
-    		});
+    		init(
+    			this,
+    			options,
+    			instance$1,
+    			create_fragment$1,
+    			safe_not_equal,
+    			{
+    				date: 0,
+    				visible: 1,
+    				startDate: 2,
+    				endDate: 21,
+    				classes: 3,
+    				hideReset: 4
+    			},
+    			[-1, -1]
+    		);
     	}
     }
 
@@ -1025,7 +1339,10 @@ var app = (function () {
     		/*datepicker_date_binding*/ ctx[2](value);
     	}
 
-    	let datepicker_props = {};
+    	let datepicker_props = {
+    		endDate: new Date(2021, 6, 29),
+    		startDate: new Date(2020, 6, 25)
+    	};
 
     	if (/*date*/ ctx[0] !== void 0) {
     		datepicker_props.date = /*date*/ ctx[0];
