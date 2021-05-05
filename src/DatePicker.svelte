@@ -2,6 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import Switcher from './Switcher.svelte';
   import {portal} from "svelte-portal";
+  import {disableScroll, enableScroll} from "./disable-scroll";
 
   export let date = new Date();
   export let visible = false;
@@ -64,12 +65,12 @@
   $: DAYS = ALL_DAYS.slice(startDay - 1, endDay);
   $: MONTHS = ALL_MONTHS.slice(startMonth, endMonth);
   $:  _date = date.toLocaleDateString("en-US");
-
-
+  
   const toggleVisibility = () => {
     if(!visible) {
       lastDate = date;
-    }
+      disableScroll();
+    } else enableScroll()
     visible = !visible; 
   }
 
@@ -136,7 +137,6 @@
       newDate = new Date(date.getFullYear(), selectedMonth, day);
     } else if (type === 'year') {
       const maxDayInSelectedMonth = new Date(endDate.getFullYear() + changedData, date.getMonth() + 1, 0).getDate();
-      // const day = Math.max(Math.min(date.getDate(), maxDayInSelectedMonth, endDay), startDay + 1);
       const year = startDate.getFullYear() + changedData;
       const month = chooseMonthOnYearSwitch(year);
       const day = chooseDayOnMonthSwitch(month, year);
@@ -222,7 +222,7 @@
 
 <input type="text" class='{classes}' readonly value={_date} on:focus={openModal}>
 {#if visible}
-  <div class="touch-date-popup" use:portal hidden on:mousedown|self={clickedOutside} >
+  <div class="touch-date-popup" use:portal hidden on:scroll|stopPropagation={() => {}} on:mousedown|self={clickedOutside} >
     <div>
       <div class="touch-date-wrapper">
         <div class='date-line'>{ date.getDate() } { ALL_MONTHS[date.getMonth()] } { date.getFullYear() }</div>

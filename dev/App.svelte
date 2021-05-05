@@ -40,12 +40,18 @@
     flex-direction: column;
     font: 20px 'Roboto', sans-serif;
   }
+
+  .big-page {
+    padding-bottom: 6000px;
+    
+  }
 </style>
 
+<div class="big-page">
 <div class="container" >
   <div class="center">
     <p>Date: {_date}</p>
     <DatePicker endDate={new Date(2021, 6, 29)} startDate={new Date(2020, 6, 25)} bind:date on:dateChange={dateChanged} on:confirmDate={confirmDate}/>
   </div>
 </div>
-
+</div>
