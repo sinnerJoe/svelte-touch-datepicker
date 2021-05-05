@@ -450,7 +450,7 @@ var app = (function () {
     				each_blocks[i].m(ul, null);
     			}
 
-    			/*ul_binding*/ ctx[9](ul);
+    			/*ul_binding*/ ctx[8](ul);
     			append(div2, t1);
     			append(div2, div1);
 
@@ -495,7 +495,7 @@ var app = (function () {
     		d(detaching) {
     			if (detaching) detach(div2);
     			destroy_each(each_blocks, detaching);
-    			/*ul_binding*/ ctx[9](null);
+    			/*ul_binding*/ ctx[8](null);
     			mounted = false;
     			run_all(dispose);
     		}
@@ -508,9 +508,9 @@ var app = (function () {
     	let { selected } = $$props;
     	let { data = [] } = $$props;
     	let { type } = $$props;
-    	let { dragging = false } = $$props;
     	let position = selected ? -selected * 50 : 0;
     	let offset = 0;
+    	let dragging = false;
     	let itemWrapper, previousY;
 
     	onMount(() => {
@@ -549,7 +549,7 @@ var app = (function () {
 
     	function onMouseDown(event) {
     		previousY = event.touches ? event.touches[0].clientY : event.clientY;
-    		$$invalidate(6, dragging = true);
+    		dragging = true;
     		window.addEventListener("mousemove", onMouseMove);
     		window.addEventListener("mouseup", onMouseUp);
     		window.addEventListener("touchmove", onMouseMove);
@@ -570,7 +570,7 @@ var app = (function () {
     		const maxPosition = -(data.length - 1) * 50;
     		const rounderPosition = Math.round((position + offset * 5) / 50) * 50;
     		const finalPosition = Math.max(maxPosition, Math.min(0, rounderPosition));
-    		$$invalidate(6, dragging = false);
+    		dragging = false;
     		setPosition(finalPosition);
     		window.removeEventListener("mousemove", onMouseMove);
     		window.removeEventListener("mouseup", onMouseUp);
@@ -610,10 +610,9 @@ var app = (function () {
     	}
 
     	$$self.$$set = $$props => {
-    		if ("selected" in $$props) $$invalidate(7, selected = $$props.selected);
+    		if ("selected" in $$props) $$invalidate(6, selected = $$props.selected);
     		if ("data" in $$props) $$invalidate(0, data = $$props.data);
-    		if ("type" in $$props) $$invalidate(8, type = $$props.type);
-    		if ("dragging" in $$props) $$invalidate(6, dragging = $$props.dragging);
+    		if ("type" in $$props) $$invalidate(7, type = $$props.type);
     	};
 
     	$$self.$$.update = () => {
@@ -629,7 +628,6 @@ var app = (function () {
     		scrollNext,
     		scrollPrev,
     		onWheel,
-    		dragging,
     		selected,
     		type,
     		ul_binding
@@ -639,13 +637,7 @@ var app = (function () {
     class Switcher extends SvelteComponent {
     	constructor(options) {
     		super();
-
-    		init(this, options, instance, create_fragment, safe_not_equal, {
-    			selected: 7,
-    			data: 0,
-    			type: 8,
-    			dragging: 6
-    		});
+    		init(this, options, instance, create_fragment, safe_not_equal, { selected: 6, data: 0, type: 7 });
     	}
     }
 
@@ -742,25 +734,22 @@ var app = (function () {
     	let t0_value = /*date*/ ctx[0].getDate() + "";
     	let t0;
     	let t1;
-    	let t2_value = /*ALL_MONTHS*/ ctx[14][/*date*/ ctx[0].getMonth()] + "";
+    	let t2_value = /*ALL_MONTHS*/ ctx[11][/*date*/ ctx[0].getMonth()] + "";
     	let t2;
     	let t3;
     	let t4_value = /*date*/ ctx[0].getFullYear() + "";
     	let t4;
     	let t5;
     	let p;
-    	let t6_value = /*WEEKDAY*/ ctx[15][/*date*/ ctx[0].getDay()] + "";
+    	let t6_value = /*WEEKDAY*/ ctx[12][/*date*/ ctx[0].getDay()] + "";
     	let t6;
     	let t7;
     	let div1;
     	let switcher0;
-    	let updating_dragging;
     	let t8;
     	let switcher1;
-    	let updating_dragging_1;
     	let t9;
     	let switcher2;
-    	let updating_dragging_2;
     	let t10;
     	let div2;
     	let t11;
@@ -770,59 +759,35 @@ var app = (function () {
     	let mounted;
     	let dispose;
 
-    	function switcher0_dragging_binding(value) {
-    		/*switcher0_dragging_binding*/ ctx[25](value);
-    	}
+    	switcher0 = new Switcher({
+    			props: {
+    				type: "day",
+    				data: /*DAYS*/ ctx[9],
+    				selected: /*date*/ ctx[0].getDate() - /*startDay*/ ctx[6]
+    			}
+    		});
 
-    	let switcher0_props = {
-    		type: "day",
-    		data: /*DAYS*/ ctx[12],
-    		selected: /*date*/ ctx[0].getDate() - /*startDay*/ ctx[6]
-    	};
+    	switcher0.$on("dateChange", /*dateChanged*/ ctx[16]);
 
-    	if (/*dayDragging*/ ctx[9] !== void 0) {
-    		switcher0_props.dragging = /*dayDragging*/ ctx[9];
-    	}
+    	switcher1 = new Switcher({
+    			props: {
+    				type: "month",
+    				data: /*MONTHS*/ ctx[10],
+    				selected: /*date*/ ctx[0].getMonth() - /*startMonth*/ ctx[5]
+    			}
+    		});
 
-    	switcher0 = new Switcher({ props: switcher0_props });
-    	binding_callbacks.push(() => bind(switcher0, "dragging", switcher0_dragging_binding));
-    	switcher0.$on("dateChange", /*dateChanged*/ ctx[18]);
+    	switcher1.$on("dateChange", /*dateChanged*/ ctx[16]);
 
-    	function switcher1_dragging_binding(value) {
-    		/*switcher1_dragging_binding*/ ctx[26](value);
-    	}
+    	switcher2 = new Switcher({
+    			props: {
+    				type: "year",
+    				data: /*YEARS*/ ctx[8],
+    				selected: /*date*/ ctx[0].getFullYear() - /*startDate*/ ctx[2].getFullYear()
+    			}
+    		});
 
-    	let switcher1_props = {
-    		type: "month",
-    		data: /*MONTHS*/ ctx[13],
-    		selected: /*date*/ ctx[0].getMonth() - /*startMonth*/ ctx[5]
-    	};
-
-    	if (/*monthDragging*/ ctx[8] !== void 0) {
-    		switcher1_props.dragging = /*monthDragging*/ ctx[8];
-    	}
-
-    	switcher1 = new Switcher({ props: switcher1_props });
-    	binding_callbacks.push(() => bind(switcher1, "dragging", switcher1_dragging_binding));
-    	switcher1.$on("dateChange", /*dateChanged*/ ctx[18]);
-
-    	function switcher2_dragging_binding(value) {
-    		/*switcher2_dragging_binding*/ ctx[27](value);
-    	}
-
-    	let switcher2_props = {
-    		type: "year",
-    		data: /*YEARS*/ ctx[11],
-    		selected: /*date*/ ctx[0].getFullYear() - /*startDate*/ ctx[2].getFullYear()
-    	};
-
-    	if (/*yearDragging*/ ctx[7] !== void 0) {
-    		switcher2_props.dragging = /*yearDragging*/ ctx[7];
-    	}
-
-    	switcher2 = new Switcher({ props: switcher2_props });
-    	binding_callbacks.push(() => bind(switcher2, "dragging", switcher2_dragging_binding));
-    	switcher2.$on("dateChange", /*dateChanged*/ ctx[18]);
+    	switcher2.$on("dateChange", /*dateChanged*/ ctx[16]);
     	let if_block = !/*hideReset*/ ctx[4] && create_if_block_1(ctx);
 
     	return {
@@ -891,52 +856,31 @@ var app = (function () {
 
     			if (!mounted) {
     				dispose = [
-    					listen(button, "click", stop_propagation(/*confirmDate*/ ctx[19])),
+    					listen(button, "click", stop_propagation(/*confirmDate*/ ctx[17])),
     					action_destroyer(portal_action = portal.call(null, div5)),
     					listen(div5, "scroll", stop_propagation(scroll_handler)),
-    					listen(div5, "mousedown", self(/*clickedOutside*/ ctx[20]))
+    					listen(div5, "mousedown", self(/*toggleVisibility*/ ctx[13]))
     				];
 
     				mounted = true;
     			}
     		},
     		p(ctx, dirty) {
-    			if ((!current || dirty[0] & /*date*/ 1) && t0_value !== (t0_value = /*date*/ ctx[0].getDate() + "")) set_data(t0, t0_value);
-    			if ((!current || dirty[0] & /*date*/ 1) && t2_value !== (t2_value = /*ALL_MONTHS*/ ctx[14][/*date*/ ctx[0].getMonth()] + "")) set_data(t2, t2_value);
-    			if ((!current || dirty[0] & /*date*/ 1) && t4_value !== (t4_value = /*date*/ ctx[0].getFullYear() + "")) set_data(t4, t4_value);
-    			if ((!current || dirty[0] & /*date*/ 1) && t6_value !== (t6_value = /*WEEKDAY*/ ctx[15][/*date*/ ctx[0].getDay()] + "")) set_data(t6, t6_value);
+    			if ((!current || dirty & /*date*/ 1) && t0_value !== (t0_value = /*date*/ ctx[0].getDate() + "")) set_data(t0, t0_value);
+    			if ((!current || dirty & /*date*/ 1) && t2_value !== (t2_value = /*ALL_MONTHS*/ ctx[11][/*date*/ ctx[0].getMonth()] + "")) set_data(t2, t2_value);
+    			if ((!current || dirty & /*date*/ 1) && t4_value !== (t4_value = /*date*/ ctx[0].getFullYear() + "")) set_data(t4, t4_value);
+    			if ((!current || dirty & /*date*/ 1) && t6_value !== (t6_value = /*WEEKDAY*/ ctx[12][/*date*/ ctx[0].getDay()] + "")) set_data(t6, t6_value);
     			const switcher0_changes = {};
-    			if (dirty[0] & /*DAYS*/ 4096) switcher0_changes.data = /*DAYS*/ ctx[12];
-    			if (dirty[0] & /*date, startDay*/ 65) switcher0_changes.selected = /*date*/ ctx[0].getDate() - /*startDay*/ ctx[6];
-
-    			if (!updating_dragging && dirty[0] & /*dayDragging*/ 512) {
-    				updating_dragging = true;
-    				switcher0_changes.dragging = /*dayDragging*/ ctx[9];
-    				add_flush_callback(() => updating_dragging = false);
-    			}
-
+    			if (dirty & /*DAYS*/ 512) switcher0_changes.data = /*DAYS*/ ctx[9];
+    			if (dirty & /*date, startDay*/ 65) switcher0_changes.selected = /*date*/ ctx[0].getDate() - /*startDay*/ ctx[6];
     			switcher0.$set(switcher0_changes);
     			const switcher1_changes = {};
-    			if (dirty[0] & /*MONTHS*/ 8192) switcher1_changes.data = /*MONTHS*/ ctx[13];
-    			if (dirty[0] & /*date, startMonth*/ 33) switcher1_changes.selected = /*date*/ ctx[0].getMonth() - /*startMonth*/ ctx[5];
-
-    			if (!updating_dragging_1 && dirty[0] & /*monthDragging*/ 256) {
-    				updating_dragging_1 = true;
-    				switcher1_changes.dragging = /*monthDragging*/ ctx[8];
-    				add_flush_callback(() => updating_dragging_1 = false);
-    			}
-
+    			if (dirty & /*MONTHS*/ 1024) switcher1_changes.data = /*MONTHS*/ ctx[10];
+    			if (dirty & /*date, startMonth*/ 33) switcher1_changes.selected = /*date*/ ctx[0].getMonth() - /*startMonth*/ ctx[5];
     			switcher1.$set(switcher1_changes);
     			const switcher2_changes = {};
-    			if (dirty[0] & /*YEARS*/ 2048) switcher2_changes.data = /*YEARS*/ ctx[11];
-    			if (dirty[0] & /*date, startDate*/ 5) switcher2_changes.selected = /*date*/ ctx[0].getFullYear() - /*startDate*/ ctx[2].getFullYear();
-
-    			if (!updating_dragging_2 && dirty[0] & /*yearDragging*/ 128) {
-    				updating_dragging_2 = true;
-    				switcher2_changes.dragging = /*yearDragging*/ ctx[7];
-    				add_flush_callback(() => updating_dragging_2 = false);
-    			}
-
+    			if (dirty & /*YEARS*/ 256) switcher2_changes.data = /*YEARS*/ ctx[8];
+    			if (dirty & /*date, startDate*/ 5) switcher2_changes.selected = /*date*/ ctx[0].getFullYear() - /*startDate*/ ctx[2].getFullYear();
     			switcher2.$set(switcher2_changes);
 
     			if (!/*hideReset*/ ctx[4]) {
@@ -977,7 +921,7 @@ var app = (function () {
     	};
     }
 
-    // (250:10) {#if !hideReset}
+    // (237:10) {#if !hideReset}
     function create_if_block_1(ctx) {
     	let button;
     	let mounted;
@@ -993,7 +937,7 @@ var app = (function () {
     			insert(target, button, anchor);
 
     			if (!mounted) {
-    				dispose = listen(button, "click", stop_propagation(/*resetDate*/ ctx[17]));
+    				dispose = listen(button, "click", stop_propagation(/*resetDate*/ ctx[15]));
     				mounted = true;
     			}
     		},
@@ -1025,7 +969,7 @@ var app = (function () {
     			attr(input, "type", "text");
     			attr(input, "class", input_class_value = "" + (null_to_empty(/*classes*/ ctx[3]) + " svelte-1gfjl4n"));
     			input.readOnly = true;
-    			input.value = /*_date*/ ctx[10];
+    			input.value = /*_date*/ ctx[7];
     		},
     		m(target, anchor) {
     			insert(target, input, anchor);
@@ -1035,24 +979,24 @@ var app = (function () {
     			current = true;
 
     			if (!mounted) {
-    				dispose = listen(input, "focus", /*openModal*/ ctx[16]);
+    				dispose = listen(input, "focus", /*openModal*/ ctx[14]);
     				mounted = true;
     			}
     		},
-    		p(ctx, dirty) {
-    			if (!current || dirty[0] & /*classes*/ 8 && input_class_value !== (input_class_value = "" + (null_to_empty(/*classes*/ ctx[3]) + " svelte-1gfjl4n"))) {
+    		p(ctx, [dirty]) {
+    			if (!current || dirty & /*classes*/ 8 && input_class_value !== (input_class_value = "" + (null_to_empty(/*classes*/ ctx[3]) + " svelte-1gfjl4n"))) {
     				attr(input, "class", input_class_value);
     			}
 
-    			if (!current || dirty[0] & /*_date*/ 1024 && input.value !== /*_date*/ ctx[10]) {
-    				input.value = /*_date*/ ctx[10];
+    			if (!current || dirty & /*_date*/ 128 && input.value !== /*_date*/ ctx[7]) {
+    				input.value = /*_date*/ ctx[7];
     			}
 
     			if (/*visible*/ ctx[1]) {
     				if (if_block) {
     					if_block.p(ctx, dirty);
 
-    					if (dirty[0] & /*visible*/ 2) {
+    					if (dirty & /*visible*/ 2) {
     						transition_in(if_block, 1);
     					}
     				} else {
@@ -1130,9 +1074,6 @@ var app = (function () {
     	let { endDate = new Date(2100, 11, 31) } = $$props;
     	let { classes = "" } = $$props;
     	let { hideReset = false } = $$props;
-    	let yearDragging = false;
-    	let monthDragging = false;
-    	let dayDragging = false;
 
     	const ALL_MONTHS = [
     		"Jan",
@@ -1229,57 +1170,36 @@ var app = (function () {
     		dispatch("confirmDate", { MouseEvent: event, date });
     	}
 
-    	function clickedOutside(event) {
-    		if (![dayDragging, monthDragging, yearDragging].some(Boolean)) {
-    			toggleVisibility();
-    		}
-    	}
-
-    	function switcher0_dragging_binding(value) {
-    		dayDragging = value;
-    		$$invalidate(9, dayDragging);
-    	}
-
-    	function switcher1_dragging_binding(value) {
-    		monthDragging = value;
-    		$$invalidate(8, monthDragging);
-    	}
-
-    	function switcher2_dragging_binding(value) {
-    		yearDragging = value;
-    		$$invalidate(7, yearDragging);
-    	}
-
     	$$self.$$set = $$props => {
     		if ("date" in $$props) $$invalidate(0, date = $$props.date);
     		if ("visible" in $$props) $$invalidate(1, visible = $$props.visible);
     		if ("startDate" in $$props) $$invalidate(2, startDate = $$props.startDate);
-    		if ("endDate" in $$props) $$invalidate(21, endDate = $$props.endDate);
+    		if ("endDate" in $$props) $$invalidate(18, endDate = $$props.endDate);
     		if ("classes" in $$props) $$invalidate(3, classes = $$props.classes);
     		if ("hideReset" in $$props) $$invalidate(4, hideReset = $$props.hideReset);
     	};
 
     	$$self.$$.update = () => {
-    		if ($$self.$$.dirty[0] & /*endDate, startDate*/ 2097156) {
-    			 $$invalidate(24, yearsCount = endDate.getFullYear() - startDate.getFullYear() + 1);
+    		if ($$self.$$.dirty & /*endDate, startDate*/ 262148) {
+    			 $$invalidate(21, yearsCount = endDate.getFullYear() - startDate.getFullYear() + 1);
     		}
 
-    		if ($$self.$$.dirty[0] & /*date, endDate, startDate*/ 2097157) {
+    		if ($$self.$$.dirty & /*date, endDate, startDate*/ 262149) {
     			 {
     				const lastYear = equalYear(date, endDate);
     				const firstYear = equalYear(date, startDate);
 
     				if (lastYear) {
-    					$$invalidate(22, endMonth = endDate.getMonth() + 1);
+    					$$invalidate(19, endMonth = endDate.getMonth() + 1);
 
     					if (equalMonth(date, endDate)) {
-    						$$invalidate(23, endDay = endDate.getDate());
+    						$$invalidate(20, endDay = endDate.getDate());
     					} else {
-    						$$invalidate(23, endDay = getDaysOfMonth(date));
+    						$$invalidate(20, endDay = getDaysOfMonth(date));
     					}
     				} else {
-    					$$invalidate(22, endMonth = 12);
-    					$$invalidate(23, endDay = getDaysOfMonth(date));
+    					$$invalidate(19, endMonth = 12);
+    					$$invalidate(20, endDay = getDaysOfMonth(date));
     				}
 
     				if (firstYear) {
@@ -1297,20 +1217,20 @@ var app = (function () {
     			}
     		}
 
-    		if ($$self.$$.dirty[0] & /*yearsCount, startDate*/ 16777220) {
-    			 $$invalidate(11, YEARS = new Array(yearsCount).fill(startDate.getFullYear()).map((v, i) => v + i));
+    		if ($$self.$$.dirty & /*yearsCount, startDate*/ 2097156) {
+    			 $$invalidate(8, YEARS = new Array(yearsCount).fill(startDate.getFullYear()).map((v, i) => v + i));
     		}
 
-    		if ($$self.$$.dirty[0] & /*startDay, endDay*/ 8388672) {
-    			 $$invalidate(12, DAYS = ALL_DAYS.slice(startDay - 1, endDay));
+    		if ($$self.$$.dirty & /*startDay, endDay*/ 1048640) {
+    			 $$invalidate(9, DAYS = ALL_DAYS.slice(startDay - 1, endDay));
     		}
 
-    		if ($$self.$$.dirty[0] & /*startMonth, endMonth*/ 4194336) {
-    			 $$invalidate(13, MONTHS = ALL_MONTHS.slice(startMonth, endMonth));
+    		if ($$self.$$.dirty & /*startMonth, endMonth*/ 524320) {
+    			 $$invalidate(10, MONTHS = ALL_MONTHS.slice(startMonth, endMonth));
     		}
 
-    		if ($$self.$$.dirty[0] & /*date*/ 1) {
-    			 $$invalidate(10, _date = date.toLocaleDateString("en-US"));
+    		if ($$self.$$.dirty & /*date*/ 1) {
+    			 $$invalidate(7, _date = date.toLocaleDateString("en-US"));
     		}
     	};
 
@@ -1322,27 +1242,21 @@ var app = (function () {
     		hideReset,
     		startMonth,
     		startDay,
-    		yearDragging,
-    		monthDragging,
-    		dayDragging,
     		_date,
     		YEARS,
     		DAYS,
     		MONTHS,
     		ALL_MONTHS,
     		WEEKDAY,
+    		toggleVisibility,
     		openModal,
     		resetDate,
     		dateChanged,
     		confirmDate,
-    		clickedOutside,
     		endDate,
     		endMonth,
     		endDay,
-    		yearsCount,
-    		switcher0_dragging_binding,
-    		switcher1_dragging_binding,
-    		switcher2_dragging_binding
+    		yearsCount
     	];
     }
 
@@ -1350,22 +1264,14 @@ var app = (function () {
     	constructor(options) {
     		super();
 
-    		init(
-    			this,
-    			options,
-    			instance$1,
-    			create_fragment$1,
-    			safe_not_equal,
-    			{
-    				date: 0,
-    				visible: 1,
-    				startDate: 2,
-    				endDate: 21,
-    				classes: 3,
-    				hideReset: 4
-    			},
-    			[-1, -1]
-    		);
+    		init(this, options, instance$1, create_fragment$1, safe_not_equal, {
+    			date: 0,
+    			visible: 1,
+    			startDate: 2,
+    			endDate: 18,
+    			classes: 3,
+    			hideReset: 4
+    		});
     	}
     }
 

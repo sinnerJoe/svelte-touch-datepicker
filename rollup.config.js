@@ -14,7 +14,7 @@ export default [
       { file: pkg.main, 'format': 'umd', name: 'DatePicker' }
     ],
     plugins: [
-      css({ output: 'public/build/vendor.css' }),
+      css({ output: 'bundle.css' }),
       svelte(),
       commonjs(),
       resolve(),

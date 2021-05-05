@@ -9,7 +9,7 @@
 </p>
 
 
-## 🚀[See it in Action](https://sharifclick.github.io/svelte-touch-datepicker/)
+## 🚀[See it in Action](https://sinnerJoe.github.io/svelte-touch-datepicker/)
 
 ## Installation
 
@@ -93,5 +93,6 @@ npm i -D svelte-touch-datepicker
 | --- | --- | --- | --- | --- |
 | `date` | `object` | default date object | yes | `new Date()` |
 | `visible` | `Boolean` | Popup visibility | No | `false` |
-| `years_map` | `Array` | Years map `[from, to]` | No | `[1900, 2100]` |
-| `classes` | `String` | custom classes to be add on input | No | `empty string` |
+| `startDate` | `Date` | The beginning of the interval that can be picked | No | `new Date(1900, 0, 1)` |
+| `endDate` | `Date` | The end of the interval that can be picked | No | `new Date(2100, 11, 31)` |
+| `classes` | `String` | custom classes attached to the input | No | `empty string` |

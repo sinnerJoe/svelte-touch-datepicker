@@ -11,10 +11,6 @@
   export let classes = '';
   export let hideReset = false;
 
-  let yearDragging = false;
-  let monthDragging = false;
-  let dayDragging = false;
-
   const ALL_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'July', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
   const ALL_DAYS = new Array(31).fill(0).map((v, i) => i + 1);
   const WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -151,12 +147,6 @@
     toggleVisibility();
     dispatch('confirmDate', {MouseEvent:event, date});
   }
-
-  function clickedOutside(event){
-    if(![dayDragging, monthDragging, yearDragging].some(Boolean)) {
-      toggleVisibility();
-    }
-  }
   
 </script>
 
@@ -222,25 +212,22 @@
 
 <input type="text" class='{classes}' readonly value={_date} on:focus={openModal}>
 {#if visible}
-  <div class="touch-date-popup" use:portal hidden on:scroll|stopPropagation={() => {}} on:mousedown|self={clickedOutside} >
+  <div class="touch-date-popup" use:portal hidden on:scroll|stopPropagation={() => {}} on:mousedown|self={toggleVisibility} >
     <div>
       <div class="touch-date-wrapper">
         <div class='date-line'>{ date.getDate() } { ALL_MONTHS[date.getMonth()] } { date.getFullYear() }</div>
         <p class='day-line'>{ WEEKDAY[date.getDay()] }</p>
         <div class='touch-date-picker'>
           <Switcher 
-            bind:dragging={dayDragging} 
             type='day' 
             data={DAYS} 
             selected={date.getDate() - startDay} 
             on:dateChange={dateChanged}/>
           <Switcher 
-            bind:dragging={monthDragging} 
             type='month' data={MONTHS} 
             selected={date.getMonth() - startMonth} 
             on:dateChange={dateChanged}/>
           <Switcher 
-            bind:dragging={yearDragging} 
             type='year' 
             data={YEARS} 
             selected={date.getFullYear() - startDate.getFullYear()} 

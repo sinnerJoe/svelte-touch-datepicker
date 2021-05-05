@@ -7,10 +7,10 @@
   export let selected;
   export let data = [];
   export let type;
-  export let dragging = false;
 
   let position = selected ? -(selected) * 50 : 0;
   let offset = 0;
+  let dragging = false;
 
   let itemWrapper, previousY;
 
