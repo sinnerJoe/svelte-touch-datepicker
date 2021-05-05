@@ -51,7 +51,7 @@
 <div class="container" >
   <div class="center">
     <p>Date: {_date}</p>
-    <DatePicker endDate={new Date(2021, 6, 29)} startDate={new Date(2020, 6, 25)} bind:date on:dateChange={dateChanged} on:confirmDate={confirmDate}/>
+    <DatePicker endDate={new Date(2025, 6, 29)} startDate={new Date(2020, 6, 25)} bind:date on:dateChange={dateChanged} on:confirmDate={confirmDate}/>
   </div>
 </div>
 </div>

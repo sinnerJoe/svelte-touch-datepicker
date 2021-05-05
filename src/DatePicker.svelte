@@ -61,7 +61,7 @@
   $: DAYS = ALL_DAYS.slice(startDay - 1, endDay);
   $: MONTHS = ALL_MONTHS.slice(startMonth, endMonth);
   $:  _date = date.toLocaleDateString("en-US");
-  
+  $: console.log(`${startDay}-${startMonth} to ${endDay}-${endMonth}`); 
   const toggleVisibility = () => {
     if(!visible) {
       lastDate = date;
@@ -114,7 +114,7 @@
       return findClosestIntervalMember(1, endDate.getDate(), date.getDate());
     }
 
-    return newMonthDays;
+    return oldDay;
   }
 
   
