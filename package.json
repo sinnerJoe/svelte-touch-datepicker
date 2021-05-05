@@ -1,5 +1,5 @@
 {
-  "name": "svelte-touch-datepicker",
+  "name": "@sinnerJoe/svelte-touch-datepicker",
   "version": "2.0.0",
   "svelte": "src/index.js",
   "module": "dist/index.mjs",
