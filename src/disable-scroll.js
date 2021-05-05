@@ -22,11 +22,9 @@ function loadConfig() {
   // modern Chrome requires { passive: false } when adding event
   let supportsPassive = false;
   try {
-    if(window) {
-      window.addEventListener("test", null, Object.defineProperty({}, 'passive', {
-          get: function () { supportsPassive = true; } 
-      }));
-    }
+    window.addEventListener("test", null, Object.defineProperty({}, 'passive', {
+        get: function () { supportsPassive = true; } 
+    }));
   } catch(e) {}
 
   const wheelOpt = supportsPassive ? { passive: false } : false;
@@ -41,6 +39,9 @@ function loadConfig() {
 
 // call this to Disable
 export function disableScroll() {
+  if(typeof document === 'undefined') {
+    return;
+  }
   const {wheelOpt, wheelEvent} = loadConfig();
   window.addEventListener('DOMMouseScroll', preventDefault, false); // older FF
   window.addEventListener(wheelEvent, preventDefault, wheelOpt); // modern desktop
@@ -50,6 +51,9 @@ export function disableScroll() {
 
 // call this to Enable
 export function enableScroll() {
+  if(typeof document === 'undefined') {
+    return;
+  }
   const {wheelOpt, wheelEvent} = loadConfig();
   window.removeEventListener('DOMMouseScroll', preventDefault, false);
   window.removeEventListener(wheelEvent, preventDefault, wheelOpt); 
