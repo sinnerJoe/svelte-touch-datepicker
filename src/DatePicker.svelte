@@ -61,7 +61,6 @@
   $: DAYS = ALL_DAYS.slice(startDay - 1, endDay);
   $: MONTHS = ALL_MONTHS.slice(startMonth, endMonth);
   $:  _date = date.toLocaleDateString("en-US");
-  $: console.log(`${startDay}-${startMonth} to ${endDay}-${endMonth}`); 
   const toggleVisibility = () => {
     if(!visible) {
       lastDate = date;
@@ -107,10 +106,10 @@
     const oldMonth = date.getMonth();
     const oldDay = date.getDate();
     const newMonthDays = getDaysOfMonth(new Date(year, newMonth, 1));
-    if(oldMonth == startDate.getMonth()) {
+    if(oldMonth == startDate.getMonth() && year === startDate.getFullYear()) {
       return findClosestIntervalMember(startDate.getDate(), newMonthDays, date.getDate());
     }
-    if(oldMonth == endDate.getMonth()) {
+    if(oldMonth == endDate.getMonth() && year === endDate.getFullYear()) {
       return findClosestIntervalMember(1, endDate.getDate(), date.getDate());
     }
 
@@ -128,11 +127,9 @@
       newDate = new Date(date.getFullYear(), date.getMonth(), changedData + startDay)
     } else if (type === 'month') {
       const selectedMonth = changedData + startMonth;
-      const maxDayInSelectedMonth = new Date(date.getFullYear(), selectedMonth + 1, 0).getDate()
-      const day = Math.max(Math.min(date.getDate(), maxDayInSelectedMonth, endDay), startDay + 1);
+      const day = chooseDayOnMonthSwitch(selectedMonth);
       newDate = new Date(date.getFullYear(), selectedMonth, day);
     } else if (type === 'year') {
-      const maxDayInSelectedMonth = new Date(endDate.getFullYear() + changedData, date.getMonth() + 1, 0).getDate();
       const year = startDate.getFullYear() + changedData;
       const month = chooseMonthOnYearSwitch(year);
       const day = chooseDayOnMonthSwitch(month, year);

@@ -940,7 +940,7 @@ var app = (function () {
     	};
     }
 
-    // (237:10) {#if !hideReset}
+    // (234:10) {#if !hideReset}
     function create_if_block_1(ctx) {
     	let button;
     	let mounted;
@@ -1150,11 +1150,11 @@ var app = (function () {
     		const oldDay = date.getDate();
     		const newMonthDays = getDaysOfMonth(new Date(year, newMonth, 1));
 
-    		if (oldMonth == startDate.getMonth()) {
+    		if (oldMonth == startDate.getMonth() && year === startDate.getFullYear()) {
     			return findClosestIntervalMember(startDate.getDate(), newMonthDays, date.getDate());
     		}
 
-    		if (oldMonth == endDate.getMonth()) {
+    		if (oldMonth == endDate.getMonth() && year === endDate.getFullYear()) {
     			return findClosestIntervalMember(1, endDate.getDate(), date.getDate());
     		}
 
@@ -1169,11 +1169,9 @@ var app = (function () {
     			newDate = new Date(date.getFullYear(), date.getMonth(), changedData + startDay);
     		} else if (type === "month") {
     			const selectedMonth = changedData + startMonth;
-    			const maxDayInSelectedMonth = new Date(date.getFullYear(), selectedMonth + 1, 0).getDate();
-    			const day = Math.max(Math.min(date.getDate(), maxDayInSelectedMonth, endDay), startDay + 1);
+    			const day = chooseDayOnMonthSwitch(selectedMonth);
     			newDate = new Date(date.getFullYear(), selectedMonth, day);
     		} else if (type === "year") {
-    			const maxDayInSelectedMonth = new Date(endDate.getFullYear() + changedData, date.getMonth() + 1, 0).getDate();
     			const year = startDate.getFullYear() + changedData;
     			const month = chooseMonthOnYearSwitch(year);
     			const day = chooseDayOnMonthSwitch(month, year);
@@ -1250,10 +1248,6 @@ var app = (function () {
 
     		if ($$self.$$.dirty & /*date*/ 1) {
     			 $$invalidate(7, _date = date.toLocaleDateString("en-US"));
-    		}
-
-    		if ($$self.$$.dirty & /*startDay, startMonth, endDay, endMonth*/ 1572960) {
-    			 console.log(`${startDay}-${startMonth} to ${endDay}-${endMonth}`);
     		}
     	};
 
