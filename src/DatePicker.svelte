@@ -157,13 +157,18 @@
   bottom:0;
   background: rgba(0, 0, 0, 0.3);
   touch-action: pan-down;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
+
 .touch-date-popup > div{
   background: var(--svtd-popup-bg-color, white);
   color: var(--svtd-popup-color, black);
-  margin-top: 30vh;
-  width: 85%;
-  margin-left: 7%;
+  width: 85vw;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
   border-radius: var(--svtd-popup-radius, 10px);
 }
 .touch-date-wrapper{
