@@ -28,7 +28,7 @@
     return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
   }
 
-  let _date, lastDate, startMonth = 0, endMonth = 12, startDay = 0, endDay;
+  let _date, lastDate = date, startMonth = 0, endMonth = 12, startDay = 0, endDay;
   $: yearsCount = endDate.getFullYear() - startDate.getFullYear() + 1;
   $: {
     const lastYear = equalYear(date, endDate);

@@ -1112,7 +1112,7 @@ var app = (function () {
     	const ALL_DAYS = new Array(31).fill(0).map((v, i) => i + 1);
     	const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     	const dispatch = createEventDispatcher();
-    	let _date, lastDate, startMonth = 0, endMonth = 12, startDay = 0, endDay;
+    	let _date, lastDate = date, startMonth = 0, endMonth = 12, startDay = 0, endDay;
 
     	const toggleVisibility = () => {
     		if (!visible) {
