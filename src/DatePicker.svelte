@@ -66,6 +66,7 @@
       lastDate = date;
       disableScroll();
     } else enableScroll()
+
     visible = !visible; 
   }
 
@@ -144,6 +145,11 @@
     toggleVisibility();
     dispatch('confirmDate', {MouseEvent:event, date});
   }
+
+  function closeModal() {
+    date = lastDate;
+    toggleVisibility();
+  }
   
 </script>
 
@@ -214,7 +220,7 @@
 
 <input type="text" class='{classes}' readonly value={_date} on:focus={openModal}>
 {#if visible}
-  <div class="touch-date-popup" use:portal hidden on:scroll|stopPropagation={() => {}} on:mousedown|self={toggleVisibility} >
+  <div class="touch-date-popup" use:portal hidden on:scroll|stopPropagation={() => {}} on:mousedown|self={closeModal} >
     <div>
       <div class="touch-date-wrapper">
         <div class='date-line'>{ date.getDate() } { ALL_MONTHS[date.getMonth()] } { date.getFullYear() }</div>

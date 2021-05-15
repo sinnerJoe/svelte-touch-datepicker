@@ -786,7 +786,7 @@ var app = (function () {
     			}
     		});
 
-    	switcher0.$on("dateChange", /*dateChanged*/ ctx[16]);
+    	switcher0.$on("dateChange", /*dateChanged*/ ctx[15]);
 
     	switcher1 = new Switcher({
     			props: {
@@ -796,7 +796,7 @@ var app = (function () {
     			}
     		});
 
-    	switcher1.$on("dateChange", /*dateChanged*/ ctx[16]);
+    	switcher1.$on("dateChange", /*dateChanged*/ ctx[15]);
 
     	switcher2 = new Switcher({
     			props: {
@@ -806,7 +806,7 @@ var app = (function () {
     			}
     		});
 
-    	switcher2.$on("dateChange", /*dateChanged*/ ctx[16]);
+    	switcher2.$on("dateChange", /*dateChanged*/ ctx[15]);
     	let if_block = !/*hideReset*/ ctx[4] && create_if_block_1(ctx);
 
     	return {
@@ -875,10 +875,10 @@ var app = (function () {
 
     			if (!mounted) {
     				dispose = [
-    					listen(button, "click", stop_propagation(/*confirmDate*/ ctx[17])),
+    					listen(button, "click", stop_propagation(/*confirmDate*/ ctx[16])),
     					action_destroyer(portal_action = portal.call(null, div5)),
     					listen(div5, "scroll", stop_propagation(scroll_handler)),
-    					listen(div5, "mousedown", self(/*toggleVisibility*/ ctx[13]))
+    					listen(div5, "mousedown", self(/*closeModal*/ ctx[17]))
     				];
 
     				mounted = true;
@@ -940,7 +940,7 @@ var app = (function () {
     	};
     }
 
-    // (239:10) {#if !hideReset}
+    // (245:10) {#if !hideReset}
     function create_if_block_1(ctx) {
     	let button;
     	let mounted;
@@ -956,7 +956,7 @@ var app = (function () {
     			insert(target, button, anchor);
 
     			if (!mounted) {
-    				dispose = listen(button, "click", stop_propagation(/*resetDate*/ ctx[15]));
+    				dispose = listen(button, "click", stop_propagation(/*resetDate*/ ctx[14]));
     				mounted = true;
     			}
     		},
@@ -998,7 +998,7 @@ var app = (function () {
     			current = true;
 
     			if (!mounted) {
-    				dispose = listen(input, "focus", /*openModal*/ ctx[14]);
+    				dispose = listen(input, "focus", /*openModal*/ ctx[13]);
     				mounted = true;
     			}
     		},
@@ -1187,6 +1187,11 @@ var app = (function () {
     		dispatch("confirmDate", { MouseEvent: event, date });
     	}
 
+    	function closeModal() {
+    		$$invalidate(0, date = lastDate);
+    		toggleVisibility();
+    	}
+
     	$$self.$$set = $$props => {
     		if ("date" in $$props) $$invalidate(0, date = $$props.date);
     		if ("visible" in $$props) $$invalidate(1, visible = $$props.visible);
@@ -1265,11 +1270,11 @@ var app = (function () {
     		MONTHS,
     		ALL_MONTHS,
     		WEEKDAY,
-    		toggleVisibility,
     		openModal,
     		resetDate,
     		dateChanged,
     		confirmDate,
+    		closeModal,
     		endDate,
     		endMonth,
     		endDay,
